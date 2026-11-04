@@ -103,9 +103,11 @@ export function TabStrip({
 
   useEffect(() => {
     if (!dragging) return;
-    let frame: number;
-    let previousTime = 0;
-    let previousScroll: number | undefined;
+    const animation = {
+      frame: 0,
+      previousTime: 0,
+      previousScroll: undefined as number | undefined,
+    };
     const tick = (time: number) => {
       const element = scroller.current;
       if (!element || !tabs.some((tab) => tab.id === dragging)) {
@@ -113,8 +115,8 @@ export function TabStrip({
         return;
       }
       const x = pointerX.current;
-      const elapsed = Math.min(32, previousTime ? time - previousTime : 16);
-      previousTime = time;
+      const elapsed = Math.min(32, animation.previousTime ? time - animation.previousTime : 16);
+      animation.previousTime = time;
       if (x !== null) {
         const rect = element.getBoundingClientRect();
         const edge = 44;
@@ -125,16 +127,16 @@ export function TabStrip({
               ? Math.min(1, (x - rect.right + edge) / edge)
               : 0;
         element.scrollLeft += speed * elapsed * 0.6;
-        if (element.scrollLeft !== previousScroll) showDrop(findDrop(x));
-        previousScroll = element.scrollLeft;
+        if (element.scrollLeft !== animation.previousScroll) showDrop(findDrop(x));
+        animation.previousScroll = element.scrollLeft;
       }
-      frame = requestAnimationFrame(tick);
+      animation.frame = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
+    animation.frame = requestAnimationFrame(tick);
     // Native dragend also covers Escape and drops outside the strip/window.
     window.addEventListener('dragend', clearDrag);
     return () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(animation.frame);
       window.removeEventListener('dragend', clearDrag);
     };
   }, [dragging, tabs, clearDrag, findDrop, showDrop]);
