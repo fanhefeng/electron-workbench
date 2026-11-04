@@ -1,0 +1,55 @@
+# 验证流程
+
+## 开发检查
+
+```bash
+npm ci
+npm run check
+npm run build
+npm run test:e2e
+```
+
+`check` 执行格式、类型感知 lint、严格类型检查和单元测试。`test:e2e` 使用生产构建，先验证完整桌面工作流，再运行独立故障测试；需要可运行 Electron 的桌面环境。
+
+测试使用临时数据目录和本地 HTTP 服务，不注册 OS 深链、不修改登录自启、不执行真实更新安装。生产导航仅允许 HTTPS，本地 HTTP 只在隔离测试模式中开放。桌面截图输出到 `test-results/`。
+
+## 自动化覆盖
+
+| 测试入口                  | 覆盖范围                                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `tests/security.test.ts`  | URL、深链、设置校验、编码长度边界和生产 / 开发 CSP                                                  |
+| `tests/storage.test.ts`   | 串行写入、并发保存、失败重试、临时文件清理、损坏文件恢复、默认值合并和标签上限                      |
+| `tests/favicon.test.ts`   | 图标类型、大小限制、重定向和响应流清理                                                              |
+| `tests/packaging.test.ts` | builder 文件过滤、ASAR 内容与 native 文件解包、filelist 匹配、glob 展开预算和 lockfile 安全版本约束 |
+| `scripts/smoke.mjs`       | preload 与 IPC、远端隔离、导航和标签、原生操作、设置、窗口重建与资源释放                            |
+| `scripts/regressions.mjs` | 卸载取消、退出写入失败时的草稿保留、并发关闭的焦点、原生主题、地址栏命令、主壳恢复和更新安装状态    |
+
+桌面工作流覆盖原生拖动、键盘排序、12 个标签的溢出与拖动滚动、下载内容、PNG 捕获、菜单及快捷键、重启恢复。界面覆盖中英文、深浅色、900px 窗口、键盘焦点、select、开关、弹窗及箭头使用约束。
+
+HTML-in-Canvas 测试验证默认关闭、设置持久化、显式刷新应用、真实像素绘制、卸载取消及标签身份 / 导航历史 / 缩放 / 静音状态保留。更新安装测试使用伪更新器，覆盖事件错误、同步异常、重复请求和关闭到托盘行为。
+
+快捷键测试使用 Electron `sendInputEvent`，原生拖动等待 `dragend` 与下一帧后继续输入。
+
+窗口重建测试按 webContents 身份筛选 BrowserWindow，排除 Playwright 同时报告的 WebContentsView 页面；临时 CDP 会话在筛选后释放。
+
+## 打包与发布验收
+
+以下命令适用于 macOS Apple Silicon；其他平台使用对应构建目标和输出目录。
+
+```bash
+npm run package
+npm run dist
+npm audit
+codesign --verify --deep --strict release/mac-arm64/Workbench.app
+```
+
+发布制品还需检查：
+
+- DMG 与 ZIP 完整性，包内入口、renderer 资源与额外资源和生产构建一致，开发源码及构建工具未随应用分发。
+- ASAR 完整性校验与仅从 ASAR 加载已启用；RunAsNode、Node options 环境变量、CLI inspect 和 file 协议额外权限已关闭。
+- blockmap 为 updater 6 支持的 JSON v2 格式。
+- 使用隔离数据目录实际启动打包应用，确认可信壳与 preload 正常加载，验证后清理测试进程和数据。打包应用关闭了 inspector，需直接启动验证。
+
+依赖审计覆盖生产与开发依赖。构建工具或 overrides 发生变化时，重新执行兼容测试、E2E 和制品验收。版本与格式约束见 [技术依据](research.md#打包与更新)。
+
+`package` / `dist` 使用 `--publish never`。本机 ad-hoc 签名与模拟 `app.isPackaged` 的测试不能替代正式 Developer ID、公证或真实更新验收；Windows / Linux 实机、登录自启和跨版本自动更新需在对应环境验证。通知展示需结合系统权限与专注模式检查。

@@ -1,0 +1,120 @@
+{
+  "name": "electron-workbench",
+  "version": "0.1.0",
+  "description": "A small Electron workspace: tabs, embedded pages, and native essentials.",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "author": "fhf",
+  "license": "MIT",
+  "engines": {
+    "node": "^24.11.0 || >=26.0.0"
+  },
+  "scripts": {
+    "dev": "install-electron && electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "start": "install-electron && electron-vite preview",
+    "typecheck": "vp check --no-fmt --no-lint --deny-warnings",
+    "lint": "vp lint --deny-warnings",
+    "format": "vp fmt --write .",
+    "format:check": "vp fmt --check .",
+    "test": "vp test run",
+    "test:watch": "vp test",
+    "test:e2e": "node scripts/smoke.mjs && node --test --test-concurrency=1 scripts/regressions.mjs",
+    "package": "npm run build && electron-builder --config electron-builder.config.mjs --dir --publish never",
+    "dist": "npm run build && electron-builder --config electron-builder.config.mjs --publish never",
+    "check": "vp check --deny-warnings && npm test"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "electron": "45.2.2",
+    "electron-builder": "27.0.0-alpha.14",
+    "electron-vite": "6.0.0",
+    "lucide-react": "^0.468.0",
+    "playwright": "^1.58.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+    "vite-plus": "1.4.0"
+  },
+  "overrides": {
+    "vite": "$vite",
+    "app-builder-lib": {
+      "minimatch": "11.0.4"
+    },
+    "@electron/asar": {
+      "glob": "14.0.3",
+      "minimatch": "11.0.4"
+    },
+    "filelist": {
+      "minimatch": "11.0.4"
+    }
+  },
+  "build": {
+    "appId": "com.fhf.workbench",
+    "productName": "Workbench",
+    "directories": {
+      "output": "release"
+    },
+    "fileOptions": {
+      "files": [
+        "out/**/*",
+        "package.json"
+      ],
+      "extraResources": [
+        {
+          "from": "resources",
+          "to": "resources",
+          "filter": [
+            "tray.png",
+            "update.json"
+          ]
+        }
+      ]
+    },
+    "electronUpdaterCompatibility": ">=6.8.3",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "protocols": [
+      {
+        "name": "Workbench",
+        "schemes": [
+          "workbench"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "resources/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "resources/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "resources/icon.png",
+      "category": "Development"
+    }
+  }
+}
