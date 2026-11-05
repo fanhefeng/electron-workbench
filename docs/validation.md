@@ -21,6 +21,7 @@ npm run test:e2e
 | `tests/storage.test.ts`   | 串行写入、并发保存、失败重试、临时文件清理、损坏文件恢复、默认值合并和标签上限                      |
 | `tests/favicon.test.ts`   | 图标类型、大小限制、重定向和响应流清理                                                              |
 | `tests/packaging.test.ts` | builder 文件过滤、ASAR 内容与 native 文件解包、filelist 匹配、glob 展开预算和 lockfile 安全版本约束 |
+| `tests/release.test.ts`   | 标签版本、完整平台与架构集合、非空安装包和 SHA-256 清单                                             |
 | `scripts/smoke.mjs`       | preload 与 IPC、远端隔离、导航和标签、原生操作、设置、窗口重建与资源释放                            |
 | `scripts/regressions.mjs` | 卸载取消、退出写入失败时的草稿保留、并发关闭的焦点、原生主题、地址栏命令、主壳恢复和更新安装状态    |
 
@@ -55,5 +56,9 @@ codesign --verify --deep --strict release/mac-arm64/Workbench.app
 - 使用隔离数据目录实际启动打包应用，确认可信壳与 preload 正常加载，验证后清理测试进程和数据。打包应用关闭了 inspector，需直接启动验证。
 
 依赖审计覆盖生产与开发依赖。构建工具或 overrides 发生变化时，重新执行兼容测试、E2E 和制品验收。版本与格式约束见 [技术依据](research.md#打包与更新)。
+
+GitHub Actions 在四组 runner 上运行 `check`、`build` 和 `dist`，macOS arm64 额外运行真实 Electron E2E，两种 macOS 架构均执行 `codesign --verify --deep --strict`。Actions 的 `installers-*` artifacts 仅包含安装包，桌面测试截图独立保存。标签与包版本匹配、全部作业成功且安装包完整非空后，才会生成 SHA-256 清单并公开 Release；失败或取消不会公开草稿。草稿上传失败可重新运行发布作业，已公开 Release 不会被覆盖。
+
+本地检查工作流使用 `actionlint .github/workflows/build.yml`；macOS 无证书分发验证使用 `WORKBENCH_UNSIGNED_RELEASE=1 npm run dist`。下载后按 [安装说明](install.md) 验证 SHA-256 并实际安装；CI 构建通过不能代替各平台的首次安装与系统放行验收。
 
 `package` / `dist` 使用 `--publish never`。本机 ad-hoc 签名与模拟 `app.isPackaged` 的测试不能替代正式 Developer ID、公证或真实更新验收；Windows / Linux 实机、登录自启和跨版本自动更新需在对应环境验证。通知展示需结合系统权限与专注模式检查。

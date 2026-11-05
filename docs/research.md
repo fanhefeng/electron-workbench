@@ -106,7 +106,11 @@ URL 输入与规范化结果均限制在 2 MiB 内，与 Chromium 的进程间 U
 
 更新采用 `electron-updater` 6 的状态机，检查、下载、安装分开；`installing` 阻止重复安装。安装前先保存工作区、等待网页卸载并保存最终状态；取消卸载时回到待安装状态，保存失败时保留网页及草稿。卸载完成后禁止创建新网页，安装失败时恢复工作区。只有 Electron 的实际更新退出事件才绕过托盘。没有发布配置时保持未配置。builder 显式声明 `electronUpdaterCompatibility: ">=6.8.3"`，输出客户端支持的 JSON v2 blockmap。[blockmap 兼容范围](https://www.electron.build/docs/migration/v27-build-changes/#block-map-format-follows-electronupdatercompatibility)
 
-`package` / `dist` 显式使用 `--publish never`。正式分发需要 Developer ID、公证或对应平台签名、真实 HTTPS feed、安装制品及更新元数据；v27 发布流程默认要求 Ed25519 更新清单签名，密钥由发布基础设施提供，不存入客户端或仓库。updater 6 不提供 Ed25519 清单签名校验；启用客户端清单验签需要支持该协议的客户端及完整发布验收。[清单签名要求](https://www.electron.build/docs/migration/v27-build-changes/#signed-update-manifests-are-required)、[客户端运行时变化](https://www.electron.build/docs/migration/v27-runtime-changes/)
+`package` / `dist` 显式使用 `--publish never`。受系统信任的分发使用 Developer ID、公证或对应平台签名；应用内更新还需要真实 HTTPS feed、安装制品及更新元数据。v27 发布更新清单默认要求 Ed25519 签名，密钥由发布基础设施提供，不存入客户端或仓库。updater 6 不提供 Ed25519 清单签名校验；启用客户端清单验签需要支持该协议的客户端及完整发布验收。[清单签名要求](https://www.electron.build/docs/migration/v27-build-changes/#signed-update-manifests-are-required)、[客户端运行时变化](https://www.electron.build/docs/migration/v27-runtime-changes/)
+
+GitHub Actions 使用独立平台 runner 构建 macOS arm64 / x64、Windows x64 和 Linux x64。`WORKBENCH_UNSIGNED_RELEASE=1` 固定 macOS ad-hoc 签名、显式跳过公证并关闭 Windows 签名；更新源非空时拒绝构建。builder 只构建文件；GitHub CLI 在所有作业成功后创建草稿、上传完整安装包和 SHA-256 清单，再公开 Release。该分发方式不发布自动更新元数据，不需要更新清单签名密钥。安装与系统放行步骤见 [安装说明](install.md)。
+
+流程默认只有仓库读取权限，仅标签发布作业具有内容写入权限；Action 依赖固定完整提交 SHA，checkout 不保留凭据。标签必须等于 `v` 加包版本，制品名称包含平台和架构，发布前验证六个非空文件的完整集合。普通推送、PR 和手动运行只上传临时 artifacts。[GitHub runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)、[Actions 安全实践](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)、[ad-hoc 签名](https://www.electron.build/docs/features/code-signing/code-signing-mac/)
 
 打包启用 ASAR 完整性校验与仅从 ASAR 加载，关闭 RunAsNode、Node options 环境变量、CLI inspect 和 file 协议额外权限。macOS 构建嵌入 ASAR 完整性摘要，再修改 fuses 和签名；ad-hoc 与正式签名均使用上游对应的默认 entitlements。[ASAR 摘要](https://www.electron.build/docs/migration/v27-runtime-changes/#macos-the-asar-integrity-digest-is-embedded)、[Electron Fuses](https://www.electronjs.org/docs/latest/tutorial/fuses)
 

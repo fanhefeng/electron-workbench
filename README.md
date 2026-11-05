@@ -2,6 +2,10 @@
 
 基于 Electron、React 和 TypeScript 的桌面工作区模板，提供网页标签、基础原生能力和本地持久化。开发与检查使用 electron-vite 和 Vite+，打包使用 electron-builder。
 
+## 下载
+
+从 [GitHub Releases](https://github.com/fanhefeng/electron-workbench/releases) 下载 macOS Apple Silicon / Intel、Windows x64 或 Linux x64 安装包。当前版本没有 Developer ID、公证或 Windows 代码签名，首次运行的系统放行步骤及 SHA-256 校验方法见 [安装说明](docs/install.md)。
+
 ## 开发
 
 需要 Node.js 24.11+（24.x）或 26+，使用 npm 管理依赖。
@@ -74,13 +78,24 @@ resources/           应用图标与更新源配置
 
 制品输出到 `release/`，打包命令均使用 `--publish never`。macOS 默认使用 ad-hoc 签名；正式签名通过 `WORKBENCH_SIGN_IDENTITY` 提供身份，并配置公证。
 
+GitHub Actions 在 `main` 推送、Pull Request 和手动运行时检查并生成安装包，保留为 Actions artifacts。推送 `v*` 标签时，标签必须与 `package.json` 的版本一致；四组构建及 macOS Apple Silicon E2E 全部成功后，上传六个安装包和 `SHA256SUMS`，最后发布 Release。预发布版本标签含 `-` 时标记为 prerelease；已发布版本的附件不会被覆盖。
+
+例如，`package.json` 和 `package-lock.json` 的版本均为 `0.1.0` 时：
+
+```bash
+git tag -a v0.1.0 -m "Workbench 0.1.0"
+git push origin v0.1.0
+```
+
+流水线设置 `WORKBENCH_UNSIGNED_RELEASE=1`：macOS 固定 ad-hoc 签名并跳过公证，Windows 不签名，并要求 `resources/update.json` 的更新源保持为空。无需配置证书或发布 PAT；仅发布作业具有 `contents: write` 权限，使用 GitHub 自动提供的 token 上传附件。手动发布同类安装包可执行 `WORKBENCH_UNSIGNED_RELEASE=1 npm run dist`（PowerShell 使用 `$env:WORKBENCH_UNSIGNED_RELEASE='1'`）。
+
 开发应用使用独立名称、数据目录和 `workbench-dev://` 深链。生产深链示例：
 
 ```text
 workbench://open?url=https%3A%2F%2Fexample.com
 ```
 
-更新源在 `resources/update.json` 中配置，默认未配置。启用更新需提供真实 HTTPS feed、平台签名、安装制品与更新元数据；发布流程需要 Ed25519 清单签名密钥。macOS 更新包含 ZIP 制品。配置及客户端格式约束见 [打包与更新](docs/research.md#打包与更新)。
+更新源在 `resources/update.json` 中配置，默认未配置。启用应用内更新需提供真实 HTTPS feed、平台签名、安装制品与更新元数据；通过 builder 发布更新清单时还需要 Ed25519 清单签名密钥。macOS 更新包含 ZIP 制品。GitHub Release 的手动下载安装不启用应用内更新。配置及客户端格式约束见 [打包与更新](docs/research.md#打包与更新)。
 
 ## 扩展
 
