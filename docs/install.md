@@ -45,8 +45,8 @@ Run the `.exe` installer. If SmartScreen warns about an unknown publisher, verif
 Run these commands in the download directory, replacing the version in the filename:
 
 ```bash
-chmod +x Workbench-0.1.1-linux-x86_64.AppImage
-./Workbench-0.1.1-linux-x86_64.AppImage
+chmod +x Workbench-0.1.2-linux-x86_64.AppImage
+./Workbench-0.1.2-linux-x86_64.AppImage
 ```
 
 ## 校验下载 / Verify downloads
@@ -57,14 +57,14 @@ The release includes `SHA256SUMS`. Calculate your downloaded file's SHA-256 and 
 
 ```bash
 # macOS
-shasum -a 256 Workbench-0.1.1-mac-arm64.dmg
+shasum -a 256 Workbench-0.1.2-mac-arm64.dmg
 # Linux
-sha256sum Workbench-0.1.1-linux-x86_64.AppImage
+sha256sum Workbench-0.1.2-linux-x86_64.AppImage
 ```
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\Workbench-0.1.1-win-x64.exe -Algorithm SHA256
+Get-FileHash .\Workbench-0.1.2-win-x64.exe -Algorithm SHA256
 ```
 
 当前下载版本不启用应用内自动更新；更新时下载新版并重新安装。
