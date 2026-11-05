@@ -59,9 +59,13 @@ $app = Wait-ForResult {
 } 'The installed app did not open the Workbench workspace.'
 Write-Host 'The installer started Workbench and the workspace rendered.'
 
-if (-not $app.CloseMainWindow() -or -not $app.WaitForExit(15000) -or $app.ExitCode -ne 0) {
-    throw 'Workbench did not close cleanly.'
-}
+# Keep the handle of the installer-started process so its exit code remains readable.
+$null = $app.Handle
+if (-not $app.CloseMainWindow()) { throw 'Could not close the Workbench window.' }
+if (-not $app.WaitForExit(15000)) { throw 'Workbench did not exit after the window was closed.' }
+$exitCode = $app.ExitCode
+$app.Dispose()
+if ($exitCode -ne 0) { throw "Workbench exited with code [$exitCode]." }
 Invoke-Nsis $uninstaller $uninstallArguments
 $null = Wait-ForResult {
     -not (Test-Path -LiteralPath $appPath) -and -not (Test-Path -LiteralPath $registration.PSPath)
