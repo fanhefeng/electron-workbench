@@ -78,13 +78,13 @@ resources/           应用图标与更新源配置
 
 制品输出到 `release/`，打包命令均使用 `--publish never`。macOS 默认使用 ad-hoc 签名；正式签名通过 `WORKBENCH_SIGN_IDENTITY` 提供身份，并配置公证。
 
-GitHub Actions 在 `main` 推送、Pull Request 和手动运行时检查并生成安装包，保留为 Actions artifacts。推送 `v*` 标签时，标签必须与 `package.json` 的版本一致；四组构建及 macOS Apple Silicon E2E 全部成功后，上传六个安装包和 `SHA256SUMS`，最后发布 Release。预发布版本标签含 `-` 时标记为 prerelease；已发布版本的附件不会被覆盖。
+GitHub Actions 在 `main` 推送、Pull Request 和手动运行时检查并生成安装包，保留为 Actions artifacts。推送 `v*` 标签时，标签必须与 `package.json` 的版本一致；四组构建及 Linux 虚拟桌面 E2E 全部成功后，上传六个安装包和 `SHA256SUMS`，最后发布 Release。预发布版本标签含 `-` 时标记为 prerelease；已发布版本的附件不会被覆盖。
 
-例如，`package.json` 和 `package-lock.json` 的版本均为 `0.1.0` 时：
+例如，`package.json` 和 `package-lock.json` 的版本均为 `0.1.1` 时：
 
 ```bash
-git tag -a v0.1.0 -m "Workbench 0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.1 -m "Workbench 0.1.1"
+git push origin v0.1.1
 ```
 
 流水线设置 `WORKBENCH_UNSIGNED_RELEASE=1`：macOS 固定 ad-hoc 签名并跳过公证，Windows 不签名，并要求 `resources/update.json` 的更新源保持为空。无需配置证书或发布 PAT；仅发布作业具有 `contents: write` 权限，使用 GitHub 自动提供的 token 上传附件。手动发布同类安装包可执行 `WORKBENCH_UNSIGNED_RELEASE=1 npm run dist`（PowerShell 使用 `$env:WORKBENCH_UNSIGNED_RELEASE='1'`）。

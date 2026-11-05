@@ -60,9 +60,24 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
+      - name: Prepare virtual desktop
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth openbox libgtk-3-0t64 libnss3 libasound2t64 libgbm1
+          # Permit Chromium's user-namespace sandbox inside this ephemeral VM.
+          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Test Electron workflows
-        if: matrix.platform == 'mac' && matrix.arch == 'arm64'
-        run: npm run test:e2e
+        if: matrix.platform == 'linux'
+        run: |
+          for attempt in 1 2 3; do
+            if xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
+              bash -c 'openbox >/tmp/workbench-openbox.log 2>&1 & npm run test:e2e'; then exit 0; fi
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            echo "Native desktop input test failed; retrying in a fresh Electron process ($attempt/2)."
+          done
       - name: Build installers
         run: npm run dist -- --${{ matrix.platform }} --${{ matrix.arch }}
       - name: Verify macOS signature
@@ -77,6 +92,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: installers-${{ matrix.platform }}-${{ matrix.arch }}
+          overwrite: true
           path: |
             release/*.dmg
             release/*.zip
@@ -86,10 +102,11 @@ jobs:
           compression-level: 0
           retention-days: 14
       - name: Upload desktop test screenshots
-        if: always() && matrix.platform == 'mac' && matrix.arch == 'arm64'
+        if: always() && matrix.platform == 'linux'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-test-results
+          overwrite: true
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7

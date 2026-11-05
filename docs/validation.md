@@ -57,7 +57,7 @@ codesign --verify --deep --strict release/mac-arm64/Workbench.app
 
 依赖审计覆盖生产与开发依赖。构建工具或 overrides 发生变化时，重新执行兼容测试、E2E 和制品验收。版本与格式约束见 [技术依据](research.md#打包与更新)。
 
-GitHub Actions 在四组 runner 上运行 `check`、`build` 和 `dist`，macOS arm64 额外运行真实 Electron E2E，两种 macOS 架构均执行 `codesign --verify --deep --strict`。Actions 的 `installers-*` artifacts 仅包含安装包，桌面测试截图独立保存。标签与包版本匹配、全部作业成功且安装包完整非空后，才会生成 SHA-256 清单并公开 Release；失败或取消不会公开草稿。草稿上传失败可重新运行发布作业，已公开 Release 不会被覆盖。
+GitHub Actions 在四组 runner 上运行 `check`、`build` 和 `dist`，Linux 使用 Xvfb 和 Openbox 运行真实 Electron E2E，两种 macOS 架构均执行 `codesign --verify --deep --strict`。虚拟显示环境保留 Chromium sandbox，在隔离 CI VM 中允许创建用户命名空间。macOS 特有键盘分支保留在原有桌面测试中，需在 macOS 桌面环境执行。桌面 E2E 在云端失败时最多用全新进程重试两次，每次完整执行所有断言，连续失败会阻止发布。Actions 的 `installers-*` artifacts 仅包含安装包，桌面测试截图独立保存。标签与包版本匹配、全部作业成功且安装包完整非空后，才会生成 SHA-256 清单并公开 Release；失败或取消不会公开草稿。草稿上传失败可重新运行发布作业，已公开 Release 不会被覆盖。
 
 本地检查工作流使用 `actionlint .github/workflows/build.yml`；macOS 无证书分发验证使用 `WORKBENCH_UNSIGNED_RELEASE=1 npm run dist`。下载后按 [安装说明](install.md) 验证 SHA-256 并实际安装；CI 构建通过不能代替各平台的首次安装与系统放行验收。
 
