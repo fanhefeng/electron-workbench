@@ -21,6 +21,28 @@ async function waitFor(read, predicate, message) {
   assert.fail(message);
 }
 
+async function resumeShellRecovery(application) {
+  await application.evaluate(({ BrowserWindow }) => {
+    globalThis.shellReloaded = false;
+    globalThis.shellReloadError = undefined;
+    BrowserWindow.getAllWindows()[0].webContents.once('did-finish-load', () => {
+      globalThis.shellReloaded = true;
+    });
+    void globalThis.resumeShell().catch((error) => {
+      globalThis.shellReloadError = String(error);
+    });
+  });
+  await waitFor(
+    () =>
+      application.evaluate(() => {
+        if (globalThis.shellReloadError) throw new Error(globalThis.shellReloadError);
+        return globalThis.shellReloaded;
+      }),
+    Boolean,
+    'Recovered shell did not finish loading',
+  );
+}
+
 async function launch(t, updateFailure) {
   const root = resolve('.');
   const data = await mkdtemp(join(tmpdir(), 'workbench-regression-'));
@@ -531,7 +553,7 @@ await test('shell renderer crash hides native pages and reloads the shell withou
       new Promise((resolve, reject) => {
         globalThis.resumeShell = () => load(...args).then(resolve, reject);
       });
-    win.webContents.forcefullyCrashRenderer();
+    setImmediate(() => win.webContents.forcefullyCrashRenderer());
   });
   await waitFor(
     () => application.evaluate(() => typeof globalThis.resumeShell === 'function'),
@@ -545,7 +567,7 @@ await test('shell renderer crash hides native pages and reloads the shell withou
     true,
   );
   await menu('CmdOrCtrl+L');
-  await application.evaluate(() => globalThis.resumeShell());
+  await resumeShellRecovery(application);
   await waitFor(
     () =>
       application.evaluate(({ BrowserWindow }) =>
@@ -738,7 +760,7 @@ await test('an installation error during shell recovery restores a usable worksp
       new Promise((resolve, reject) => {
         globalThis.resumeShell = () => load(...args).then(resolve, reject);
       });
-    win.webContents.forcefullyCrashRenderer();
+    setImmediate(() => win.webContents.forcefullyCrashRenderer());
   });
   await waitFor(
     () => application.evaluate(() => typeof globalThis.resumeShell === 'function'),
@@ -746,7 +768,7 @@ await test('an installation error during shell recovery restores a usable worksp
     'Shell recovery did not start',
   );
   await application.evaluate(() => globalThis.failUpdate());
-  await application.evaluate(() => globalThis.resumeShell());
+  await resumeShellRecovery(application);
   const target = `${draft.url}?after-recovery=1`;
   const restored = await application.evaluate(async ({ BrowserWindow }, url) => {
     const wc = BrowserWindow.getAllWindows()[0].webContents;
