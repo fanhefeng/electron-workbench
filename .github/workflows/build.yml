@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      windows_release:
+        description: Published version tag to download and verify on Windows
+        type: string
 
 permissions:
   contents: read
@@ -21,6 +25,7 @@ defaults:
 
 jobs:
   build:
+    if: ${{ !inputs.windows_release }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -88,6 +93,13 @@ jobs:
           done
       - name: Build installers
         run: npm run dist -- --${{ matrix.platform }} --${{ matrix.arch }}
+      - name: Test Windows installation and first launch
+        if: matrix.platform == 'win'
+        shell: powershell
+        timeout-minutes: 5
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          ./scripts/test-windows-installer.ps1 -Installer "release/Workbench-$version-win-x64.exe" -Version $version
       - name: Verify macOS signature
         if: matrix.platform == 'mac'
         env:
@@ -118,6 +130,38 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  verify-windows-release:
+    if: inputs.windows_release
+    name: Verify published Windows installer
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download and verify public Release installer
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ inputs.windows_release }}
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          if ($env:RELEASE_TAG -cnotmatch '^v(\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?)$') {
+            throw 'Enter a version tag such as v0.1.2.'
+          }
+          $version = $Matches[1]
+          $name = "Workbench-$version-win-x64.exe"
+          $installer = Join-Path $env:RUNNER_TEMP $name
+          $checksums = Join-Path $env:RUNNER_TEMP SHA256SUMS
+          $base = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG"
+          Invoke-WebRequest -UseBasicParsing "$base/SHA256SUMS" -OutFile $checksums
+          Invoke-WebRequest -UseBasicParsing "$base/$name" -OutFile $installer
+          $expected = @(Get-Content -LiteralPath $checksums | Where-Object { $_.EndsWith("  $name") })
+          $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+          if ($expected.Count -ne 1 -or "$actual  $name" -ne $expected[0]) {
+            throw 'The downloaded installer checksum does not match.'
+          }
+          ./scripts/test-windows-installer.ps1 -Installer $installer -Version $version
 
   release:
     name: Publish release

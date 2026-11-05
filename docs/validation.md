@@ -63,4 +63,6 @@ GitHub Actions 在四组 runner 上运行 `check`、`build` 和 `dist`，Linux �
 
 本地检查工作流使用 `actionlint .github/workflows/build.yml`；macOS 无证书分发验证使用 `WORKBENCH_UNSIGNED_RELEASE=1 npm run dist`。下载后按 [安装说明](install.md) 验证 SHA-256 并实际安装；CI 构建通过不能代替各平台的首次安装与系统放行验收。
 
+Windows x64 构建在上传安装包前运行默认 NSIS 安装流程，验证当前用户的安装记录、自动启动后的工作区界面、退出和卸载。可手动运行 Build and release，并填写 `windows_release` 标签，匿名下载已发布的安装包和 SHA-256 清单，核对后执行同一套检查。测试运行于 Windows Server 2025，用户电脑上的 SmartScreen 和 Smart App Control 按其设备策略处理。
+
 `package` / `dist` 使用 `--publish never`。本机 ad-hoc 签名与模拟 `app.isPackaged` 的测试不能替代正式 Developer ID、公证或真实更新验收；Windows / Linux 实机、登录自启和跨版本自动更新需在对应环境验证。通知展示需结合系统权限与专注模式检查。

@@ -34,9 +34,15 @@ open /Applications/Workbench.app
 
 ## Windows
 
-运行 `.exe` 安装包。如 SmartScreen 显示未知发布者，在确认来源和校验值后，选择“更多信息”中的“仍要运行”。如果组织策略或安全软件阻止安装，请联系设备管理员。
+下载 `win-x64.exe`，核对 SHA-256 后双击运行。安装到当前用户账户，完成后会打开 Workbench。以后可从开始菜单启动，在“设置”的“已安装的应用”中卸载。
 
-Run the `.exe` installer. If SmartScreen warns about an unknown publisher, verify the source and checksum, then select More info and Run anyway. Organization policies or security software may require your administrator's approval.
+Download `win-x64.exe`, verify its SHA-256, and double-click it. Setup installs for the current user and opens Workbench when finished. Use the Start menu to launch it again, or Settings, Installed apps to uninstall it.
+
+安装包未签名。SmartScreen 提示无法识别应用时，如有“更多信息”和“仍要运行”选项，可在确认来源和校验值后选择。启用了 Smart App Control 或受组织策略管理的设备可能会阻止安装。
+
+The installer is unsigned. If SmartScreen warns about an unrecognized app, confirm the source and checksum before selecting More info and Run anyway, when available. Smart App Control or organization policies may block installation.
+
+参考 / Reference: [Microsoft SmartScreen 与 Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/smartscreen-reputation)。
 
 ## Linux
 
