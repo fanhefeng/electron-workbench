@@ -7,10 +7,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { Arch, getArtifactArchName } from 'builder-util';
 
 const execute = promisify(execFile);
 const script = fileURLToPath(new URL('../scripts/prepare-release.mjs', import.meta.url));
 const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const installers = (
+  [
+    ['mac', Arch.arm64, 'dmg'],
+    ['mac', Arch.arm64, 'zip'],
+    ['mac', Arch.x64, 'dmg'],
+    ['mac', Arch.x64, 'zip'],
+    ['win', Arch.x64, 'exe'],
+    ['linux', Arch.x64, 'AppImage'],
+  ] as const
+)
+  .map(
+    ([platform, arch, extension]) =>
+      `Workbench-${version}-${platform}-${getArtifactArchName(arch, extension)}.${extension}`,
+  )
+  .sort();
 const run = (args: string[], tag = `v${version}`) =>
   execute(process.execPath, [script, ...args], {
     env: { ...process.env, GITHUB_REF_NAME: tag },
@@ -22,15 +38,7 @@ test('release rejects version mismatches, missing targets and empty installers',
   const directory = await mkdtemp(join(tmpdir(), 'workbench-release-invalid-'));
   try {
     await assert.rejects(run([directory]), /Incomplete or unexpected release assets/);
-    for (const name of [
-      'mac-arm64.dmg',
-      'mac-arm64.zip',
-      'mac-x64.dmg',
-      'mac-x64.zip',
-      'win-x64.exe',
-      'linux-x64.AppImage',
-    ])
-      await writeFile(join(directory, `Workbench-${version}-${name}`), '');
+    for (const name of installers) await writeFile(join(directory, name), '');
     await assert.rejects(run([directory]), /Empty installer/);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -40,16 +48,7 @@ test('release rejects version mismatches, missing targets and empty installers',
 test('release hashes every platform and architecture without modifying installers', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'workbench-release-complete-'));
   try {
-    const names = [
-      'mac-arm64.dmg',
-      'mac-arm64.zip',
-      'mac-x64.dmg',
-      'mac-x64.zip',
-      'win-x64.exe',
-      'linux-x64.AppImage',
-    ]
-      .map((suffix) => `Workbench-${version}-${suffix}`)
-      .sort();
+    const names = installers;
     for (const name of names) await writeFile(join(directory, name), `Installer fixture ${name}`);
     await run([directory]);
     const expected =

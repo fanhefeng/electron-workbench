@@ -11,7 +11,7 @@ This build uses ad-hoc signing on macOS without Apple notarization. Windows inst
 | macOS Apple Silicon（M 系列） | `mac-arm64.dmg` 或 / or `mac-arm64.zip` |
 | macOS Intel                   | `mac-x64.dmg` 或 / or `mac-x64.zip`     |
 | Windows x64                   | `win-x64.exe`                           |
-| Linux x64                     | `linux-x64.AppImage`                    |
+| Linux x64                     | `linux-x86_64.AppImage`                 |
 
 下载本 Release 的安装包附件。GitHub 自动生成的 Source code 压缩包包含源码，不能直接安装。
 
@@ -45,8 +45,8 @@ Run the `.exe` installer. If SmartScreen warns about an unknown publisher, verif
 Run these commands in the download directory, replacing the version in the filename:
 
 ```bash
-chmod +x Workbench-0.1.0-linux-x64.AppImage
-./Workbench-0.1.0-linux-x64.AppImage
+chmod +x Workbench-0.1.0-linux-x86_64.AppImage
+./Workbench-0.1.0-linux-x86_64.AppImage
 ```
 
 ## 校验下载 / Verify downloads
@@ -59,7 +59,7 @@ The release includes `SHA256SUMS`. Calculate your downloaded file's SHA-256 and 
 # macOS
 shasum -a 256 Workbench-0.1.0-mac-arm64.dmg
 # Linux
-sha256sum Workbench-0.1.0-linux-x64.AppImage
+sha256sum Workbench-0.1.0-linux-x86_64.AppImage
 ```
 
 ```powershell

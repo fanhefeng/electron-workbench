@@ -19,7 +19,7 @@ const expected = [
   `Workbench-${version}-mac-x64.dmg`,
   `Workbench-${version}-mac-x64.zip`,
   `Workbench-${version}-win-x64.exe`,
-  `Workbench-${version}-linux-x64.AppImage`,
+  `Workbench-${version}-linux-x86_64.AppImage`,
 ].sort();
 const entries = await readdir(directory, { withFileTypes: true });
 const actual = entries
