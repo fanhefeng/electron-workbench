@@ -98,14 +98,14 @@ test('ASAR glob crawling and unpacking preserve packed bytes and native files', 
     );
     for (const [name, content] of Object.entries(files)) {
       assert.ok(entries.includes(`/${name}`), `Missing archive entry: ${name}`);
-      assert.equal(extractFile(archive, name).toString(), content);
+      assert.equal(extractFile(archive, join(...name.split('/'))).toString(), content);
     }
-    assert.equal(statFile(archive, 'native/addon.node').unpacked, true);
+    assert.equal(statFile(archive, join('native', 'addon.node')).unpacked, true);
     assert.equal(
       await readFile(`${archive}.unpacked/native/addon.node`, 'utf8'),
       files['native/addon.node'],
     );
-    assert.equal(Boolean(statFile(archive, 'out/main/index.js').unpacked), false);
+    assert.equal(Boolean(statFile(archive, join('out', 'main', 'index.js')).unpacked), false);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -115,7 +115,9 @@ test('filelist includes matching files and excludes explicit paths', async () =>
   const directory = await fixture();
   try {
     const list = new FileList();
-    list.include(join(directory, 'out/**/*.js').replaceAll('\\', '/'));
+    // filelist applies path.normalize internally; minimatch must treat Windows separators as paths.
+    const options = { dot: false, windowsPathsNoEscape: true };
+    list.include(join(directory, 'out/**/*.js').replaceAll('\\', '/'), options);
     list.exclude(join(directory, 'out/renderer/assets/app.js').replaceAll('\\', '/'));
     assert.deepEqual(list.toArray(), [join(directory, 'out/main/index.js').replaceAll('\\', '/')]);
   } finally {
