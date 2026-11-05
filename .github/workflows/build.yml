@@ -78,6 +78,9 @@ jobs:
                 openbox >/tmp/workbench-openbox.log 2>&1 &
                 dunst >/tmp/workbench-notifications.log 2>&1 &
                 gdbus wait --session --timeout 10 org.freedesktop.Notifications
+                ulimit -c
+                cat /proc/sys/kernel/core_pattern
+                ulimit -c 0
                 timeout --signal=TERM --kill-after=10s 45s node --test --test-name-pattern="^shell renderer crash" scripts/regressions.mjs
               '; then exit 0; fi
             if [[ "$attempt" == 1 ]]; then exit 1; fi
