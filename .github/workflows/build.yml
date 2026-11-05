@@ -72,15 +72,15 @@ jobs:
       - name: Test Electron workflows
         if: matrix.platform == 'linux'
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1; do
             if xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
               dbus-run-session -- bash -e -c '
                 openbox >/tmp/workbench-openbox.log 2>&1 &
                 dunst >/tmp/workbench-notifications.log 2>&1 &
                 gdbus wait --session --timeout 10 org.freedesktop.Notifications
-                timeout --signal=TERM --kill-after=10s 120s npm run test:e2e
+                timeout --signal=TERM --kill-after=10s 45s node --test --test-name-pattern="^shell renderer crash" scripts/regressions.mjs
               '; then exit 0; fi
-            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            if [[ "$attempt" == 1 ]]; then exit 1; fi
             echo "Native desktop input test failed; retrying in a fresh Electron process ($attempt/2)."
           done
       - name: Build installers

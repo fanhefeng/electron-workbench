@@ -544,7 +544,15 @@ await test('failed quit persistence preserves the live page and draft', async (t
 
 await test('shell renderer crash hides native pages and reloads the shell without recreating tabs', async (t) => {
   const { application, snapshot, open, menu } = await launch(t);
+  console.error('[DEBUG-recovery] launched');
+  application
+    .process()
+    .stderr.on('data', (chunk) => process.stderr.write(`[DEBUG-recovery-native] ${chunk}`));
+  application
+    .process()
+    .once('exit', (code, signal) => console.error('[DEBUG-recovery] exit', code, signal));
   const draft = await open('draft');
+  console.error('[DEBUG-recovery] tab opened');
   const before = await snapshot();
   await application.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows()[0];
@@ -553,21 +561,34 @@ await test('shell renderer crash hides native pages and reloads the shell withou
       new Promise((resolve, reject) => {
         globalThis.resumeShell = () => load(...args).then(resolve, reject);
       });
-    setImmediate(() => win.webContents.forcefullyCrashRenderer());
+    win.webContents.on('render-process-gone', (_event, details) =>
+      console.error('[DEBUG-recovery] renderer gone', details.reason),
+    );
+    win.webContents.on('did-finish-load', () => console.error('[DEBUG-recovery] shell loaded'));
+    setImmediate(() => {
+      console.error('[DEBUG-recovery] crashing');
+      win.webContents.forcefullyCrashRenderer();
+      console.error('[DEBUG-recovery] crash requested');
+    });
   });
+  console.error('[DEBUG-recovery] injection returned');
   await waitFor(
     () => application.evaluate(() => typeof globalThis.resumeShell === 'function'),
     Boolean,
     'Shell renderer crash did not start recovery',
   );
+  console.error('[DEBUG-recovery] recovery intercepted');
   assert.equal(
     await application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].contentView.children.every((view) => !view.getVisible()),
     ),
     true,
   );
+  console.error('[DEBUG-recovery] views hidden');
   await menu('CmdOrCtrl+L');
+  console.error('[DEBUG-recovery] menu queued');
   await resumeShellRecovery(application);
+  console.error('[DEBUG-recovery] resumed');
   await waitFor(
     () =>
       application.evaluate(({ BrowserWindow }) =>
@@ -578,6 +599,7 @@ await test('shell renderer crash hides native pages and reloads the shell withou
     Boolean,
     'Recovery did not deliver the queued address command',
   );
+  console.error('[DEBUG-recovery] focus delivered');
   const after = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].webContents.executeJavaScript('window.desktop.getSnapshot()'),
   );
@@ -590,6 +612,7 @@ await test('shell renderer crash hides native pages and reloads the shell withou
     await application.evaluate(({ webContents }, id) => !!webContents.fromId(id), draft.contentsId),
     true,
   );
+  console.error('[DEBUG-recovery] assertions complete');
 });
 
 for (const failure of ['event', 'throw']) {
