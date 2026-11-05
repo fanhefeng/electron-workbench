@@ -33,7 +33,7 @@ HTML-in-Canvas 测试验证默认关闭、设置持久化、显式刷新应用�
 
 安全回归覆盖不同窗口、修改后的壳入口 URL、运行时非法 IPC 参数，以及图标请求不携带其他站点的登录 Cookie。
 
-快捷键测试使用 Electron `sendInputEvent`，原生拖动等待 `dragend` 与下一帧后继续输入。
+快捷键测试使用 Electron `sendInputEvent`，发出事件前等待宿主 BrowserWindow 聚焦；原生拖动等待 `dragend` 与下一帧后继续输入。
 
 窗口重建测试按 webContents 身份筛选 BrowserWindow，排除 Playwright 同时报告的 WebContentsView 页面；临时 CDP 会话在筛选后释放。
 

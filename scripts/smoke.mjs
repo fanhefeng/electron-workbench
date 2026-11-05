@@ -288,6 +288,8 @@ try {
       'none',
     );
   }
+  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
+  await waitState(application, ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused());
   await application.evaluate(({ BrowserWindow }) => {
     const wc = BrowserWindow.getAllWindows()[0].webContents;
     const modifiers = [process.platform === 'darwin' ? 'meta' : 'control'];
