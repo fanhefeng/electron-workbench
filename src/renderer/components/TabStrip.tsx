@@ -10,7 +10,7 @@ import {
 import { Globe2, LoaderCircle, Plus, X } from 'lucide-react';
 import type { Snapshot, Tab } from '../../shared/model.ts';
 import type { Translate } from '../i18n';
-import { IconButton } from './Primitives';
+import { Button, IconButton } from './Primitives';
 
 const tabDragType = 'application/x-workbench-tab';
 type DropTarget = { id: string; edge: 'before' | 'after'; to: string };
@@ -20,19 +20,40 @@ export function TabStrip({
   t,
   run,
   newTab,
+  showAllTabs,
 }: {
   state: Snapshot;
   t: Translate;
   run: (task: Promise<unknown>) => void;
   newTab: () => void;
+  showAllTabs: () => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
+  const overflowTrigger = useRef<HTMLButtonElement>(null);
   const dragId = useRef<string | null>(null);
   const pointerX = useRef<number | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [overflow, setOverflow] = useState(false);
   const { tabs, activeTabId, page } = state;
   const order = tabs.map((tab) => tab.id).join(',');
+
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const measure = () => {
+      const trigger = overflowTrigger.current;
+      const gap = parseFloat(getComputedStyle(element.closest('.tab-strip')!).columnGap) || 0;
+      // Compare with the width available without the trigger, so it cannot sustain its own overflow.
+      const available = element.clientWidth + (trigger ? trigger.offsetWidth + gap : 0);
+      setOverflow(element.scrollWidth > available + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    if (overflowTrigger.current) observer.observe(overflowTrigger.current);
+    return () => observer.disconnect();
+  }, [order, overflow]);
 
   const clearDrag = useCallback(() => {
     dragId.current = null;
@@ -147,7 +168,16 @@ export function TabStrip({
     button?.parentElement?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
   const moveTab = (from: string, to: string) => {
-    run(window.desktop.reorderTabs(from, to).then(() => focusTab(from)));
+    const focused = document.activeElement;
+    run(
+      window.desktop.reorderTabs(from, to).then(() => {
+        if (
+          document.activeElement === focused ||
+          (document.activeElement === document.body && focused && !focused.isConnected)
+        )
+          focusTab(from);
+      }),
+    );
   };
   const closeTab = (id: string, restoreFocus = false) => {
     const trigger = document.getElementById(`tab-${id}`);
@@ -292,6 +322,19 @@ export function TabStrip({
           {tabs.map((tab) => renderTab(tab))}
         </div>
       </div>
+      {overflow && (
+        <Button
+          ref={overflowTrigger}
+          id="all-tabs-trigger"
+          className="tab-overflow-trigger"
+          variant="ghost"
+          size="small"
+          aria-haspopup="dialog"
+          onClick={showAllTabs}
+        >
+          {t('allTabs')} ({tabs.length})
+        </Button>
+      )}
       <IconButton label={t('newTab')} onClick={newTab}>
         <Plus size={16} aria-hidden="true" />
       </IconButton>

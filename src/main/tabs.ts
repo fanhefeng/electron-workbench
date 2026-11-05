@@ -30,6 +30,7 @@ export class Tabs {
   private appliedCanvas = new WeakMap<WebContentsView, boolean>();
   private retaining = new WeakSet<WebContentsView>();
   private closing = new WeakMap<WebContentsView, Promise<boolean>>();
+  private suspended = false;
   private viewport: Bounds = { x: 0, y: 0, width: 0, height: 0 };
   private readonly allowLocal = process.env.WORKBENCH_TEST === '1';
   private readonly webSession: Session;
@@ -75,7 +76,7 @@ export class Tabs {
   activate(id: string): void {
     const tab = this.host.tabs.find((t) => t.id === id);
     if (id !== 'home' && !tab) throw new Error('Unknown tab');
-    if (tab) this.ensureView(tab);
+    if (tab && !this.suspended) this.ensureView(tab);
     this.host.activeTabId = id;
     this.layout();
     this.host.changed(true);
@@ -106,6 +107,7 @@ export class Tabs {
     this.host.changed(true);
   }
   private ensureActiveView(): void {
+    if (this.suspended) return;
     const active = this.host.tabs.find((t) => t.id === this.host.activeTabId);
     if (active) {
       try {
@@ -255,6 +257,7 @@ export class Tabs {
     for (const id of this.views.keys()) this.destroyView(id);
   }
   async closeViews(): Promise<boolean> {
+    this.suspended = true;
     let closed = false;
     try {
       for (const [id, view] of this.views) {
@@ -270,12 +273,15 @@ export class Tabs {
       closed = true;
       return true;
     } finally {
-      if (!closed && !this.host.window.isDestroyed()) {
-        this.ensureActiveView();
-        this.layout();
-        this.host.changed();
-      }
+      if (!closed) this.resume();
     }
+  }
+  resume(): void {
+    if (!this.suspended || this.host.window.isDestroyed()) return;
+    this.suspended = false;
+    this.ensureActiveView();
+    this.layout();
+    this.host.changed();
   }
   private destroyView(id: string): void {
     const view = this.views.get(id);
@@ -302,6 +308,7 @@ export class Tabs {
     }
   }
   private ensureView(tab: Tab, history?: RestoreOptions, ignoreCache = false): WebContentsView {
+    if (this.suspended) throw new Error('Workspace is closing');
     const existing = this.views.get(tab.id);
     if (existing) return existing;
     try {

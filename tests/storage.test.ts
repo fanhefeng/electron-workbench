@@ -1,4 +1,4 @@
-import { test } from 'vite-plus/test';
+import { test, vi } from 'vite-plus/test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -105,6 +105,54 @@ test('saved settings preserve explicit values and merge missing defaults', async
       notifications: false,
     });
   } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('invalid or obsolete saved settings preserve the remaining preferences', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'workbench-settings-recovery-'));
+  try {
+    await writeFile(
+      join(directory, 'workspace.json'),
+      JSON.stringify({
+        settings: {
+          theme: 'dark',
+          locale: 'en',
+          notifications: false,
+          htmlInCanvas: 'true',
+          retired: true,
+        },
+        tabs: [],
+        activeTabId: 'home',
+      }),
+    );
+    const storage = new Storage(directory, () => {});
+    assert.deepEqual((await storage.load()).settings, {
+      ...DEFAULT_SETTINGS,
+      theme: 'dark',
+      locale: 'en',
+      notifications: false,
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('failed recovery backup stops loading and preserves the original workspace', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'workbench-backup-failure-'));
+  const now = vi.spyOn(Date, 'now').mockReturnValue(12345);
+  try {
+    const file = join(directory, 'workspace.json');
+    await writeFile(file, '{broken');
+    const backup = `${file}.broken-12345`;
+    await mkdir(backup);
+    await writeFile(join(backup, 'keep'), 'Existing backup');
+    const storage = new Storage(directory, () => {});
+    await assert.rejects(storage.load());
+    assert.equal(await readFile(file, 'utf8'), '{broken');
+    assert.equal(await readFile(join(backup, 'keep'), 'utf8'), 'Existing backup');
+  } finally {
+    now.mockRestore();
     await rm(directory, { recursive: true, force: true });
   }
 });

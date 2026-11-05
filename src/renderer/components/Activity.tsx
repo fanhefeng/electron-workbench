@@ -29,7 +29,11 @@ export function Activity({
                 {item.total > 0 && ` / ${Math.round(item.total / 1024)} KB`}
               </small>
               {item.state === 'progressing' && (
-                <progress value={item.received} max={item.total || 1} />
+                <progress
+                  aria-label={`${t('progressing')} ${item.name}`}
+                  value={item.total > 0 ? item.received : undefined}
+                  max={item.total > 0 ? item.total : undefined}
+                />
               )}
             </div>
             {item.state === 'completed' && (

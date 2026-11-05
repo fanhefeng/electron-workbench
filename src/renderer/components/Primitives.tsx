@@ -2,6 +2,7 @@ import type {
   ButtonHTMLAttributes,
   ComponentPropsWithRef,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
 } from 'react';
 import { LoaderCircle } from 'lucide-react';
@@ -10,6 +11,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost';
   size?: 'normal' | 'small' | 'icon';
   loading?: boolean;
+  ref?: Ref<HTMLButtonElement>;
 };
 export function Button({
   variant = 'secondary',

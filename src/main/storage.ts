@@ -62,7 +62,8 @@ export class Storage {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         this.report(error);
-        await rename(this.file, `${this.file}.broken-${Date.now()}`).catch(this.report);
+        // Recovery may continue only after the original has been preserved.
+        await rename(this.file, `${this.file}.broken-${Date.now()}`);
       }
       return fallback;
     }

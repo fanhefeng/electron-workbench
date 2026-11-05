@@ -11,9 +11,9 @@ import {
   X,
 } from 'lucide-react';
 import type { AppInfo } from '../shared/model.ts';
-import { normalizeURL } from '../shared/validation.ts';
 import { translator } from './i18n';
 import { useDesktopState } from './store';
+import { useAddressForm } from './useAddressForm';
 import { Overview } from './components/Overview';
 import { Settings } from './components/Settings';
 import { Activity } from './components/Activity';
@@ -23,12 +23,11 @@ import { Button, IconButton, TextInput } from './components/Primitives';
 export function App() {
   const { state, failure } = useDesktopState();
   const [info, setInfo] = useState<AppInfo | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [url, setURL] = useState('');
-  const [formError, setFormError] = useState('');
+  const [dialogKind, setDialogKind] = useState<'new-tab' | 'all-tabs' | null>(null);
+  const [tabListError, setTabListError] = useState(false);
+  const [switchingTab, setSwitchingTab] = useState<string | null>(null);
+  const dialogSession = useRef(0);
   const [toast, setToast] = useState('');
-  const [address, setAddress] = useState('');
-  const [busy, setBusy] = useState(false);
   const [focusAddress, setFocusAddress] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
@@ -37,6 +36,11 @@ export function App() {
   const active = state?.tabs.find((tab) => tab.id === state.activeTabId);
   const activeId = active?.id;
   const ready = state !== null;
+  const dialogOpen = dialogKind !== null;
+  const address = useAddressForm((url) => window.desktop.navigateTab(activeId!, url));
+  const newAddress = useAddressForm((url) => window.desktop.openTab(url));
+  const synchronizeAddress = address.synchronize;
+  const resetNewAddress = newAddress.reset;
   const t = translator(state?.settings.locale ?? 'zh');
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -61,12 +65,25 @@ export function App() {
     [notify],
   );
   const newTab = useCallback(() => {
+    const session = ++dialogSession.current;
     void window.desktop
       .setOverlay(true)
       .then(() => {
-        setURL('');
-        setFormError('');
-        setDialogOpen(true);
+        if (dialogSession.current !== session) return;
+        resetNewAddress();
+        setDialogKind('new-tab');
+      })
+      .catch((error) => notify(String(error)));
+  }, [notify, resetNewAddress]);
+  const showAllTabs = useCallback(() => {
+    const session = ++dialogSession.current;
+    void window.desktop
+      .setOverlay(true)
+      .then(() => {
+        if (dialogSession.current !== session) return;
+        setTabListError(false);
+        setSwitchingTab(null);
+        setDialogKind('all-tabs');
       })
       .catch((error) => notify(String(error)));
   }, [notify]);
@@ -120,18 +137,18 @@ export function App() {
     document.documentElement.lang = state.settings.locale === 'zh' ? 'zh-CN' : 'en';
   }, [state]);
   useEffect(() => {
-    setAddress(active?.url ?? '');
-  }, [activeId, active?.url]);
+    synchronizeAddress(active?.url ?? '', activeId);
+  }, [activeId, active?.url, synchronizeAddress]);
   useEffect(() => {
     if (!ready) return;
     return window.desktop?.onCommand((command) => {
       if (command === 'new-tab') {
-        setURL('');
-        setFormError('');
-        setDialogOpen(true);
+        dialogSession.current += 1;
+        resetNewAddress();
+        setDialogKind('new-tab');
       } else setFocusAddress(true);
     });
-  }, [ready]);
+  }, [ready, resetNewAddress]);
   useLayoutEffect(() => {
     if (!focusAddress || state?.page !== 'workspace') return;
     addressInput.current?.focus();
@@ -165,11 +182,15 @@ export function App() {
   }, [active, dialogOpen, info, newTab, run]);
   useLayoutEffect(() => {
     const element = dialog.current;
-    if (dialogOpen && element && !element.open) {
-      element.showModal();
-      element.querySelector<HTMLInputElement>('#new-url')?.focus();
-    }
-  }, [dialogOpen]);
+    if (!dialogKind || !element) return;
+    if (!element.open) element.showModal();
+    const target =
+      dialogKind === 'new-tab'
+        ? element.querySelector<HTMLElement>('#new-url')
+        : (element.querySelector<HTMLElement>('[aria-current="page"]') ??
+          element.querySelector<HTMLElement>('.tab-list-choice'));
+    target?.focus();
+  }, [dialogKind]);
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!element || !activeId || state?.page !== 'workspace') return;
@@ -213,7 +234,7 @@ export function App() {
             ))}
           </nav>
         </header>
-        <TabStrip state={state} t={t} run={run} newTab={newTab} />
+        <TabStrip state={state} t={t} run={run} newTab={newTab} showAllTabs={showAllTabs} />
         <div
           id="workspace-panel"
           className="content"
@@ -253,17 +274,23 @@ export function App() {
                 </IconButton>
                 <form
                   className="address-bar"
+                  data-invalid={!!address.error}
+                  noValidate
                   onSubmit={(event) => {
                     event.preventDefault();
-                    run(window.desktop.navigateTab(active.id, address));
+                    void address.submit();
                   }}
                 >
                   <LockKeyhole size={12} />
                   <TextInput
                     ref={addressInput}
                     aria-label={t('addressPlaceholder')}
-                    value={address}
-                    onChange={(event) => setAddress(event.target.value)}
+                    value={address.value}
+                    onChange={(event) => address.change(event.target.value)}
+                    onKeyDown={address.onKeyDown}
+                    aria-invalid={!!address.error}
+                    aria-describedby={address.error ? 'browser-address-error' : undefined}
+                    aria-busy={address.pending || undefined}
                     onFocus={(event) => event.target.select()}
                     spellCheck={false}
                   />
@@ -293,6 +320,15 @@ export function App() {
                   <ExternalLink size={16} aria-hidden="true" />
                 </IconButton>
               </div>
+              {address.error && (
+                <p
+                  className="address-error browser-address-error"
+                  id="browser-address-error"
+                  role="alert"
+                >
+                  {t(address.error)}
+                </p>
+              )}
               <div ref={viewport} className="web-viewport">
                 {active.error && (
                   <div className="page-error">
@@ -313,68 +349,131 @@ export function App() {
       </main>
       <dialog
         ref={dialog}
-        className="new-tab-dialog"
-        aria-labelledby="new-tab-title"
+        className={`new-tab-dialog ${dialogKind === 'all-tabs' ? 'all-tabs-dialog' : ''}`}
+        data-kind={dialogKind}
+        aria-labelledby={dialogKind === 'all-tabs' ? 'all-tabs-title' : 'new-tab-title'}
         onClose={() => {
-          setDialogOpen(false);
+          if (dialog.current?.open) return;
+          dialogSession.current += 1;
+          setDialogKind(null);
+          resetNewAddress();
           run(window.desktop.setOverlay(false));
+          if (dialogKind === 'all-tabs' && document.activeElement === document.body)
+            document.getElementById(`tab-${state.activeTabId}`)?.focus();
         }}
       >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (busy) return;
-            try {
-              normalizeURL(url);
-            } catch {
-              setFormError(t('invalidURL'));
-              return;
-            }
-            setBusy(true);
-            void window.desktop
-              .openTab(url)
-              .then(() => dialog.current?.close())
-              .catch((error) => setFormError(String(error)))
-              .finally(() => setBusy(false));
-          }}
-        >
-          <div className="dialog-heading">
-            <h2 id="new-tab-title">{t('newPage')}</h2>
-            <IconButton label={t('close')} onClick={() => dialog.current?.close()}>
-              <X size={15} />
-            </IconButton>
-          </div>
-          <p className="dialog-description">{t('newPageHint')}</p>
-          <label className="url-label" htmlFor="new-url">
-            {t('source')}
-          </label>
-          <TextInput
-            id="new-url"
-            name="url"
-            autoFocus
-            placeholder="https://example.com"
-            autoComplete="off"
-            value={url}
-            onChange={(event) => {
-              setURL(event.target.value);
-              setFormError('');
+        {dialogKind === 'all-tabs' ? (
+          <>
+            <div className="dialog-heading">
+              <h2 id="all-tabs-title">
+                {t('allTabs')} ({state.tabs.length})
+              </h2>
+              <IconButton label={t('close')} onClick={() => dialog.current?.close()}>
+                <X size={15} aria-hidden="true" />
+              </IconButton>
+            </div>
+            {tabListError && (
+              <p className="address-error" role="alert">
+                {t('tabSwitchFailed')}
+              </p>
+            )}
+            <ul className="tab-overflow-list">
+              {state.tabs.map((tab) => (
+                <li key={tab.id}>
+                  <button
+                    className="tab-list-choice"
+                    disabled={switchingTab !== null}
+                    aria-busy={switchingTab === tab.id || undefined}
+                    aria-current={
+                      state.page === 'workspace' && state.activeTabId === tab.id
+                        ? 'page'
+                        : undefined
+                    }
+                    onClick={() => {
+                      const session = dialogSession.current;
+                      setSwitchingTab(tab.id);
+                      setTabListError(false);
+                      void window.desktop
+                        .activateTab(tab.id)
+                        .then(() => {
+                          if (
+                            dialogSession.current === session &&
+                            dialog.current?.open &&
+                            dialog.current.dataset.kind === 'all-tabs'
+                          )
+                            dialog.current.close();
+                        })
+                        .catch(() => {
+                          if (
+                            dialogSession.current === session &&
+                            dialog.current?.open &&
+                            dialog.current.dataset.kind === 'all-tabs'
+                          )
+                            setTabListError(true);
+                        })
+                        .finally(() => {
+                          if (dialogSession.current === session) setSwitchingTab(null);
+                        });
+                    }}
+                  >
+                    <span className="tab-list-copy">
+                      <strong>{tab.title}</strong>
+                      <small>{new URL(tab.url).host}</small>
+                    </span>
+                    {state.page === 'workspace' && state.activeTabId === tab.id && (
+                      <small className="tab-list-current">{t('currentTab')}</small>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void newAddress.submit().then((opened) => {
+                if (opened) dialog.current?.close();
+              });
             }}
-            required
-            aria-invalid={!!formError}
-            aria-describedby="url-error"
-          />
-          <div className="form-error" id="url-error" role="alert">
-            {formError}
-          </div>
-          <footer>
-            <Button type="button" onClick={() => dialog.current?.close()}>
-              {t('cancel')}
-            </Button>
-            <Button variant="primary" loading={busy} type="submit">
-              {t('open')}
-            </Button>
-          </footer>
-        </form>
+          >
+            <div className="dialog-heading">
+              <h2 id="new-tab-title">{t('newPage')}</h2>
+              <IconButton label={t('close')} onClick={() => dialog.current?.close()}>
+                <X size={15} />
+              </IconButton>
+            </div>
+            <p className="dialog-description">{t('newPageHint')}</p>
+            <label className="url-label" htmlFor="new-url">
+              {t('source')}
+            </label>
+            <TextInput
+              id="new-url"
+              name="url"
+              autoFocus
+              placeholder="https://example.com"
+              autoComplete="off"
+              value={newAddress.value}
+              onChange={(event) => newAddress.change(event.target.value)}
+              onKeyDown={newAddress.onKeyDown}
+              required
+              aria-invalid={!!newAddress.error}
+              aria-describedby="url-error"
+            />
+            <div className="form-error" id="url-error" role="alert">
+              {newAddress.error && t(newAddress.error)}
+            </div>
+            <footer>
+              <Button type="button" onClick={() => dialog.current?.close()}>
+                {t('cancel')}
+              </Button>
+              <Button variant="primary" loading={newAddress.pending} type="submit">
+                {t('open')}
+              </Button>
+            </footer>
+          </form>
+        )}
       </dialog>
       {toast && (
         <div className="toast" role="status">

@@ -73,10 +73,14 @@ export class Application {
     };
     if (saved.settings.restoreTabs && this.state.tabs.some((t) => t.id === saved.activeTabId))
       this.state.activeTabId = saved.activeTabId;
-    this.updater = new Updater(() => {
-      this.state.update = this.updater.state;
-      this.changed();
-    });
+    this.updater = new Updater(
+      () => {
+        this.state.update = this.updater.state;
+        if (this.state.update.status === 'error') this.tabs?.resume();
+        this.changed();
+      },
+      () => this.requestWindowClose(),
+    );
     autoUpdater.on('before-quit-for-update', () => {
       this.quitting = true;
     });
@@ -229,10 +233,17 @@ export class Application {
     this.win.on('close', (event) => {
       if (this.state.settings.closeToTray && !this.quitting) {
         event.preventDefault();
+        if (this.windowCloseApproved) tabs.resume();
         this.win.hide();
         return;
       }
-      if (this.windowCloseApproved || this.quitting || event.defaultPrevented) return;
+      if (this.windowCloseApproved) {
+        queueMicrotask(() => {
+          if (event.defaultPrevented) tabs.resume();
+        });
+        return;
+      }
+      if (this.quitting || event.defaultPrevented) return;
       const preventDefault = event.preventDefault;
       let cancelled = false;
       // Distinguish a later listener's cancellation from our asynchronous close gate.
@@ -292,6 +303,7 @@ export class Application {
       return true;
     } catch (error) {
       this.quitting = false;
+      this.tabs.resume();
       throw error;
     }
   }
@@ -301,7 +313,15 @@ export class Application {
     const tabs = this.tabs;
     const task = this.storage
       .flush()
-      .then(() => tabs.closeViews())
+      .then(async () => {
+        if (!(await tabs.closeViews())) return false;
+        await this.storage.flush();
+        return true;
+      })
+      .catch((error: unknown) => {
+        tabs.resume();
+        throw error;
+      })
       .finally(() => {
         if (this.windowClose === task) this.windowClose = undefined;
       });
@@ -487,7 +507,8 @@ export class Application {
         this.log(`native-${action}`);
       },
       showDownload: async (id: string) => {
-        const download = this.state.downloads.find((d) => d.id === this.id(id));
+        const key = this.id(id);
+        const download = this.state.downloads.find((d) => d.id === key);
         if (download?.state === 'completed' && download.path) shell.showItemInFolder(download.path);
       },
       updateAction: async (action: 'check' | 'download' | 'install') => {

@@ -64,6 +64,7 @@ async function launch(t, updateFailure) {
       const updater = require(${JSON.stringify(join(root, 'node_modules/electron-updater'))}).autoUpdater;
       updater.checkForUpdates = async () => updater.emit('update-available', { version: '0.2.0' });
       updater.downloadUpdate = async () => updater.emit('update-downloaded', { version: '0.2.0' });
+      globalThis.failUpdate = () => updater.emit('error', new Error('Install failed'));
       updater.quitAndInstall = () => {
         globalThis.installCalls = (globalThis.installCalls ?? 0) + 1;
         ${updateFailure === 'throw' ? "throw new Error('Install failed');" : updateFailure === 'event' ? "updater.emit('error', new Error('Install failed'));" : ''}
@@ -191,6 +192,127 @@ await test('window waiter ignores embedded views and selects a BrowserWindow', a
   } finally {
     await window.dispose();
   }
+});
+
+await test('IPC rejects another window even when it loads the trusted entry and preload', async (t) => {
+  const { application, snapshot } = await launch(t);
+  const before = await snapshot();
+  const preload = join(resolve('.'), 'out/preload/index.cjs');
+  const result = await application.evaluate(async ({ BrowserWindow }, preload) => {
+    const hostile = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        preload,
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    try {
+      await hostile.loadURL('workbench-app://shell/');
+      return await hostile.webContents.executeJavaScript(
+        "window.desktop.updateSettings({ locale: 'en' }).then(() => 'accepted', error => error.message)",
+      );
+    } finally {
+      hostile.destroy();
+    }
+  }, preload);
+  assert.match(result, /Untrusted IPC sender/);
+  assert.deepEqual((await snapshot()).settings, before.settings);
+});
+
+await test('favicon requests do not attach another site login cookies', async (t) => {
+  const { application, open } = await launch(t);
+  const draft = await open('favicon-cookie-source');
+  const target = `${draft.url}?cross-site-icon=1`;
+  await application.evaluate(
+    async ({ webContents }, { id, url, target }) => {
+      const wc = webContents.fromId(id);
+      await wc.loadURL(url.replace('127.0.0.1', 'localhost'));
+      await wc.session.cookies.set({
+        url,
+        name: 'private_session',
+        value: 'sensitive',
+        sameSite: 'strict',
+      });
+      wc.session.webRequest.onBeforeSendHeaders({ urls: [target] }, (details, callback) => {
+        globalThis.faviconCookieHeaders =
+          details.requestHeaders.Cookie ?? details.requestHeaders.cookie ?? '';
+        callback({ requestHeaders: details.requestHeaders });
+      });
+      wc.emit('page-favicon-updated', {}, [target]);
+    },
+    { id: draft.contentsId, url: draft.url, target },
+  );
+  const cookie = await waitFor(
+    () => application.evaluate(() => globalThis.faviconCookieHeaders),
+    (value) => typeof value === 'string',
+    'Favicon request did not start',
+  );
+  assert.equal(
+    cookie,
+    '',
+    'An untrusted favicon URL must not carry authenticated cookies from the page session',
+  );
+});
+
+await test('IPC rejects an altered shell entry URL and malformed runtime arguments', async (t) => {
+  const { application, page, snapshot, open } = await launch(t);
+  const draft = await open('ipc-validation');
+  const invalid = [
+    { method: 'openTab', args: [null] },
+    { method: 'activateTab', args: [{}] },
+    { method: 'closeTab', args: [false] },
+    { method: 'reorderTabs', args: [draft.id, []] },
+    { method: 'navigateTab', args: [draft.id, 'file:///etc/passwd'] },
+    { method: 'tabAction', args: [draft.id, []] },
+    { method: 'setPage', args: [[]] },
+    { method: 'setViewport', args: [{ x: 0, y: 0, width: NaN, height: 100 }] },
+    { method: 'setOverlay', args: ['true'] },
+    { method: 'updateSettings', args: [{ notifications: 'true' }] },
+    { method: 'nativeAction', args: [null] },
+    { method: 'showDownload', args: [{}] },
+    { method: 'updateAction', args: [[]] },
+  ];
+  for (const { method, args } of invalid) {
+    await assert.rejects(
+      page.evaluate(({ method, args }) => window.desktop[method](...args), { method, args }),
+      undefined,
+      method,
+    );
+  }
+  assert.equal((await snapshot()).activeTabId, draft.id);
+  const message = await application.evaluate(async ({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    await win.loadURL('workbench-app://shell/?untrusted=1');
+    return win.webContents.executeJavaScript(
+      "window.desktop.updateSettings({ locale: 'en' }).then(() => 'accepted', error => error.message)",
+    );
+  });
+  assert.match(message, /Untrusted IPC sender/);
+  await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].loadURL('workbench-app://shell/'),
+  );
+  assert.equal((await snapshot()).settings.locale, 'zh');
+});
+
+await test('a later window close cancellation restores a usable workspace', async (t) => {
+  const { application, open } = await launch(t);
+  await open('close-gate');
+  await application.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    globalThis.windowCloseCount = 0;
+    win.on('close', (event) => {
+      if (++globalThis.windowCloseCount === 2) event.preventDefault();
+    });
+    win.close();
+  });
+  await waitFor(
+    () => application.evaluate(() => globalThis.windowCloseCount),
+    (count) => count === 2,
+    'Window did not reach the final close gate',
+  );
+  await open('after-cancelled-close');
 });
 
 await test('native window colors follow app and system theme changes', async (t) => {
@@ -480,7 +602,7 @@ for (const failure of ['event', 'throw']) {
 }
 
 await test('update installation is single-flight and bypasses tray only on native quit', async (t) => {
-  const { application, page, snapshot } = await launch(t, 'pending');
+  const { application, page, snapshot, open, data } = await launch(t, 'pending');
   await page.waitForFunction(
     async () => (await window.desktop.getSnapshot()).update.status === 'idle',
   );
@@ -488,6 +610,8 @@ await test('update installation is single-flight and bypasses tray only on nativ
   await page.evaluate(() => window.desktop.setPage('settings'));
   await page.evaluate(() => window.desktop.updateAction('check'));
   await page.evaluate(() => window.desktop.updateAction('download'));
+  const draft = await open('install-ready');
+  await page.evaluate(() => window.desktop.updateSettings({ theme: 'dark' }));
   await page.evaluate(() =>
     Promise.all([
       window.desktop.updateAction('install'),
@@ -496,7 +620,21 @@ await test('update installation is single-flight and bypasses tray only on nativ
     ]),
   );
   assert.equal(await application.evaluate(() => globalThis.installCalls), 1);
+  assert.equal(
+    await application.evaluate(({ webContents }, id) => !!webContents.fromId(id), draft.contentsId),
+    false,
+    'Pages must finish unloading before the installer is invoked',
+  );
+  assert.equal(
+    JSON.parse(await readFile(join(data, 'workspace.json'), 'utf8')).settings.theme,
+    'dark',
+  );
   assert.equal((await snapshot()).update.status, 'installing');
+  await assert.rejects(
+    page.evaluate(() => window.desktop.openTab('https://example.com/while-installing')),
+    /Workspace is closing/,
+  );
+  await page.evaluate(() => window.desktop.setPage('settings'));
   assert.equal(
     await page.getByRole('button', { name: '重启并安装', exact: true }).isDisabled(),
     true,
@@ -524,4 +662,428 @@ await test('update installation is single-flight and bypasses tray only on nativ
     return event.defaultPrevented;
   });
   assert.equal(afterQuit, false);
+});
+
+await test('update installation respects cancelled unload and can be retried', async (t) => {
+  const { application, page, snapshot, open } = await launch(t, 'pending');
+  const draft = await open('install-draft');
+  await application.evaluate(async ({ webContents }, id) => {
+    await webContents
+      .fromId(id)
+      .executeJavaScript(
+        "window.onbeforeunload = () => false; document.querySelector('#draft').value = 'Keep my update draft';",
+        true,
+      );
+  }, draft.contentsId);
+  await page.evaluate(() => window.desktop.updateAction('check'));
+  await page.evaluate(() => window.desktop.updateAction('download'));
+  await page.evaluate(() => window.desktop.updateAction('install'));
+  assert.equal((await snapshot()).update.status, 'downloaded');
+  assert.equal(await application.evaluate(() => globalThis.installCalls ?? 0), 0);
+  assert.equal(
+    await application.evaluate(
+      ({ webContents }, id) =>
+        webContents.fromId(id).executeJavaScript("document.querySelector('#draft').value"),
+      draft.contentsId,
+    ),
+    'Keep my update draft',
+  );
+  await application.evaluate(async ({ webContents }, id) => {
+    await webContents.fromId(id).executeJavaScript('window.onbeforeunload = null');
+  }, draft.contentsId);
+  await page.evaluate(() => window.desktop.updateAction('install'));
+  assert.equal(await application.evaluate(() => globalThis.installCalls), 1);
+});
+
+await test('failed update persistence preserves the live document and never invokes the installer', async (t) => {
+  const { application, page, snapshot, open, data } = await launch(t, 'pending');
+  const draft = await open('install-storage-failure');
+  await page.evaluate(() => window.desktop.updateAction('check'));
+  await page.evaluate(() => window.desktop.updateAction('download'));
+  const file = join(data, 'workspace.json');
+  await waitFor(
+    () => readFile(file, 'utf8'),
+    (content) => JSON.parse(content).activeTabId === draft.id,
+    'Workspace did not save',
+  );
+  await rm(file);
+  await mkdir(file);
+  try {
+    await page.evaluate(() => window.desktop.updateSettings({ theme: 'dark' }));
+    await assert.rejects(page.evaluate(() => window.desktop.updateAction('install')));
+    assert.equal((await snapshot()).update.status, 'error');
+    assert.equal(await application.evaluate(() => globalThis.installCalls ?? 0), 0);
+    assert.equal(
+      await application.evaluate(
+        ({ webContents }, id) => !!webContents.fromId(id),
+        draft.contentsId,
+      ),
+      true,
+    );
+  } finally {
+    await rm(file, { recursive: true, force: true });
+  }
+});
+
+await test('an installation error during shell recovery restores a usable workspace', async (t) => {
+  const { application, page, open } = await launch(t, 'pending');
+  const draft = await open('install-recovery');
+  await page.evaluate(() => window.desktop.updateAction('check'));
+  await page.evaluate(() => window.desktop.updateAction('download'));
+  await page.evaluate(() => window.desktop.updateAction('install'));
+  await application.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    const load = win.loadURL.bind(win);
+    win.loadURL = (...args) =>
+      new Promise((resolve, reject) => {
+        globalThis.resumeShell = () => load(...args).then(resolve, reject);
+      });
+    win.webContents.forcefullyCrashRenderer();
+  });
+  await waitFor(
+    () => application.evaluate(() => typeof globalThis.resumeShell === 'function'),
+    Boolean,
+    'Shell recovery did not start',
+  );
+  await application.evaluate(() => globalThis.failUpdate());
+  await application.evaluate(() => globalThis.resumeShell());
+  const target = `${draft.url}?after-recovery=1`;
+  const restored = await application.evaluate(async ({ BrowserWindow }, url) => {
+    const wc = BrowserWindow.getAllWindows()[0].webContents;
+    await wc.executeJavaScript(`window.desktop.openTab(${JSON.stringify(url)})`);
+    return wc.executeJavaScript('window.desktop.getSnapshot()');
+  }, target);
+  assert.equal(restored.update.status, 'error');
+  assert.equal(restored.tabs.find((tab) => tab.id === restored.activeTabId)?.url, target);
+});
+
+await test('late tab reorder preserves focus after switching to settings', async (t) => {
+  const { application, page, open } = await launch(t);
+  await open('reorder-other');
+  const draft = await open('reorder-focus');
+  await application.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('desktop:reorderTabs');
+    ipcMain.handle(
+      'desktop:reorderTabs',
+      () =>
+        new Promise((resolve) => {
+          globalThis.finishReorder = resolve;
+        }),
+    );
+  });
+  await page.locator(`#tab-${draft.id}`).focus();
+  await page.keyboard.press('Alt+ArrowLeft');
+  await waitFor(
+    () => application.evaluate(() => !!globalThis.finishReorder),
+    Boolean,
+    'Reorder did not start',
+  );
+  const settings = page.getByRole('button', { name: '设置', exact: true });
+  await settings.click();
+  await application.evaluate(() => globalThis.finishReorder());
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)),
+      ),
+  );
+  assert.equal(await settings.evaluate((element) => element === document.activeElement), true);
+});
+
+const uiResults = resolve('test-results');
+await mkdir(uiResults, { recursive: true });
+
+await test('address errors stay beside each input, translate, and clear when edited', async (t) => {
+  const { page, snapshot, open } = await launch(t);
+  const home = page.locator('.open-form input');
+  for (const value of ['https://', 'http://example.com', 'https://user:password@example.com', '']) {
+    await home.fill(value);
+    await page.locator('.open-form button[type="submit"]').click();
+    await page.locator('#home-address-error').waitFor();
+    assert.equal(await home.inputValue(), value);
+    assert.equal(await home.getAttribute('aria-invalid'), 'true');
+    assert.equal(
+      await page.locator('#home-address-error').textContent(),
+      '请输入有效的 HTTPS 网页地址。',
+    );
+    assert.equal((await snapshot()).tabs.length, 0);
+    assert.equal(await page.locator('.toast').count(), 0);
+    if (value === 'https://')
+      await page.screenshot({
+        path: join(uiResults, 'address-home-light-zh.png'),
+        animations: 'disabled',
+      });
+  }
+  await home.fill('example.com');
+  assert.equal(await page.locator('#home-address-error').count(), 0);
+  assert.equal(await home.getAttribute('aria-invalid'), 'false');
+  await home.dispatchEvent('keydown', { key: 'Enter', isComposing: true });
+  assert.equal((await snapshot()).tabs.length, 0);
+
+  const first = await open('address-validation');
+  await page.evaluate(() => window.desktop.activateTab('home'));
+  await home.fill(first.url);
+  await home.press('Enter');
+  await page.locator('.address-bar input').waitFor();
+  assert.equal((await snapshot()).activeTabId, first.id);
+  const address = page.locator('.address-bar input');
+  await address.fill('https://');
+  await address.press('Enter');
+  await page.locator('#browser-address-error').waitFor();
+  assert.equal((await snapshot()).tabs[0].url, first.url);
+  assert.equal(await address.inputValue(), 'https://');
+  assert.equal(await page.locator('.toast').count(), 0);
+  await page.evaluate(() => window.desktop.updateSettings({ locale: 'en', theme: 'dark' }));
+  await page.getByText('Enter a valid HTTPS website address.', { exact: true }).waitFor();
+  await page.screenshot({
+    path: join(uiResults, 'address-toolbar-dark-en.png'),
+    animations: 'disabled',
+  });
+  await address.fill(`${first.url}?recovered=1`);
+  assert.equal(await page.locator('#browser-address-error').count(), 0);
+  await address.press('Enter');
+  await page.waitForFunction(async () =>
+    (await window.desktop.getSnapshot()).tabs[0].url.includes('recovered=1'),
+  );
+
+  await page.getByRole('button', { name: 'New tab', exact: true }).click();
+  await page.getByRole('dialog').waitFor();
+  await page.locator('#new-url').fill('https://');
+  await page.getByRole('button', { name: 'Open page', exact: true }).click();
+  await page.getByText('Enter a valid HTTPS website address.', { exact: true }).waitFor();
+  assert.equal(await page.locator('#new-url').inputValue(), 'https://');
+  assert.equal((await snapshot()).tabs.length, 1);
+  await page.locator('#new-url').fill('example.com');
+  assert.equal(await page.locator('#url-error').textContent(), '');
+  await page.keyboard.press('Escape');
+});
+
+await test('late address results preserve newer drafts and a reopened dialog', async (t) => {
+  const { application, page, snapshot } = await launch(t);
+  await application.evaluate(({ ipcMain }) => {
+    globalThis.addressCalls = [];
+    ipcMain.removeHandler('desktop:openTab');
+    ipcMain.handle(
+      'desktop:openTab',
+      () => new Promise((resolve, reject) => globalThis.addressCalls.push({ resolve, reject })),
+    );
+  });
+  const home = page.locator('.open-form input');
+  await home.fill('example.com');
+  await page.locator('.open-form').evaluate((form) => {
+    form.requestSubmit();
+    form.requestSubmit();
+  });
+  await waitFor(
+    () => application.evaluate(() => globalThis.addressCalls.length),
+    (count) => count === 1,
+    'Address submission must be single-flight',
+  );
+  await home.fill('new.example');
+  await application.evaluate(() => globalThis.addressCalls[0].reject(new Error('Attach failed')));
+  await page.waitForFunction(() => !document.querySelector('.open-form button').disabled);
+  assert.equal(await home.inputValue(), 'new.example');
+  assert.equal(await page.locator('#home-address-error').count(), 0);
+  assert.equal(await page.locator('.toast').count(), 0);
+  await home.press('Enter');
+  await waitFor(
+    () => application.evaluate(() => globalThis.addressCalls.length),
+    (count) => count === 2,
+    'Edited address can be retried',
+  );
+  await application.evaluate(() => globalThis.addressCalls[1].reject(new Error('Attach failed')));
+  await page.getByText('暂时无法打开这个地址，请重试。', { exact: true }).waitFor();
+
+  const trigger = page.getByRole('button', { name: '新建标签页', exact: true });
+  await trigger.click();
+  await page.locator('#new-url').fill('example.com');
+  await page.getByRole('dialog').getByRole('button', { name: '打开页面', exact: true }).click();
+  await waitFor(
+    () => application.evaluate(() => globalThis.addressCalls.length),
+    (count) => count === 3,
+    'Dialog submission started',
+  );
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  await trigger.click();
+  await page.locator('#new-url').fill('keep-this.example');
+  await application.evaluate(() => globalThis.addressCalls[2].resolve());
+  assert.equal(await page.getByRole('dialog').isVisible(), true);
+  assert.equal(await page.locator('#new-url').inputValue(), 'keep-this.example');
+  assert.equal((await snapshot()).tabs.length, 0);
+});
+
+await test('a late navigation failure cannot replace another tab address or its feedback', async (t) => {
+  const { application, page, open } = await launch(t);
+  const other = await open('navigation-other');
+  await open('navigation-current');
+  await application.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('desktop:navigateTab');
+    ipcMain.handle(
+      'desktop:navigateTab',
+      () =>
+        new Promise((_resolve, reject) => {
+          globalThis.rejectNavigation = reject;
+        }),
+    );
+  });
+  const address = page.locator('.address-bar input');
+  await address.fill('example.com');
+  await address.press('Enter');
+  await waitFor(
+    () => application.evaluate(() => !!globalThis.rejectNavigation),
+    Boolean,
+    'Navigation started',
+  );
+  await page.evaluate((id) => window.desktop.activateTab(id), other.id);
+  await page.waitForFunction(
+    (url) => document.querySelector('.address-bar input').value === url,
+    other.url,
+  );
+  await application.evaluate(() => globalThis.rejectNavigation(new Error('Navigation failed')));
+  assert.equal(await address.inputValue(), other.url);
+  assert.equal(await page.locator('#browser-address-error').count(), 0);
+  assert.equal(await page.locator('.toast').count(), 0);
+});
+
+await test('a late successful navigation preserves a newer address draft', async (t) => {
+  const { application, page, snapshot, open } = await launch(t);
+  const draft = await open('navigation-draft');
+  await application.evaluate(({ webContents }, id) => {
+    const wc = webContents.fromId(id);
+    const load = wc.loadURL.bind(wc);
+    wc.loadURL = (url) =>
+      new Promise((resolve, reject) => {
+        globalThis.finishNavigation = () => load(url).then(resolve, reject);
+      });
+  }, draft.contentsId);
+  const address = page.locator('.address-bar input');
+  const target = `${draft.url}?navigated=1`;
+  await address.fill(target);
+  await address.press('Enter');
+  await waitFor(
+    () => application.evaluate(() => !!globalThis.finishNavigation),
+    Boolean,
+    'Navigation did not start',
+  );
+  await address.fill('keep-this-newer.example');
+  await application.evaluate(() => globalThis.finishNavigation());
+  await waitFor(
+    snapshot,
+    (state) => state.tabs[0].url === target && !state.tabs[0].loading,
+    'Navigation did not finish',
+  );
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)),
+      ),
+  );
+  assert.equal(await address.inputValue(), 'keep-this-newer.example');
+  await page.evaluate(() => window.desktop.activateTab('home'));
+  await page.evaluate((id) => window.desktop.activateTab(id), draft.id);
+  await page.waitForFunction(
+    (url) => document.querySelector('.address-bar input').value === url,
+    target,
+  );
+});
+
+await test('overflow list is conditional, keyboard accessible, and preserves embedded pages', async (t) => {
+  const { application, page, snapshot, open } = await launch(t);
+  await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setSize(900, 680),
+  );
+  assert.equal(await page.locator('#all-tabs-trigger').count(), 0);
+  const pages = [];
+  for (let index = 0; index < 5; index += 1) {
+    pages.push(await open(`overflow-list-${index}`));
+    const tab = pages.at(-1);
+    await application.evaluate(
+      async ({ webContents }, { id, title }) => {
+        await webContents.fromId(id).executeJavaScript(`document.title = ${JSON.stringify(title)}`);
+      },
+      { id: tab.contentsId, title: `Workspace document ${index} · 完整的项目资料与设计参考标题` },
+    );
+  }
+  const trigger = page.locator('#all-tabs-trigger');
+  await trigger.waitFor();
+  assert.equal(await trigger.textContent(), '全部标签 (5)');
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: '全部标签 (5)', exact: true });
+  await dialog.waitFor();
+  assert.equal(await dialog.locator('.tab-list-choice').count(), 5);
+  assert.equal(
+    await dialog
+      .locator('.tab-list-choice[aria-current="page"]')
+      .evaluate((el) => el === document.activeElement),
+    true,
+  );
+  assert.equal(
+    await dialog.locator('.tab-list-copy strong').first().textContent(),
+    'Workspace document 0 · 完整的项目资料与设计参考标题',
+  );
+  assert.equal(
+    await dialog.locator('.tab-list-copy small').first().textContent(),
+    new URL(pages[0].url).host,
+  );
+  await waitFor(
+    () =>
+      application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].contentView.children.every((view) => !view.getVisible()),
+      ),
+    Boolean,
+    'Embedded views hide beneath the list',
+  );
+  await page.screenshot({
+    path: join(uiResults, 'all-tabs-light-zh-900.png'),
+    animations: 'disabled',
+  });
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.activeElement?.id === 'all-tabs-trigger');
+  await waitFor(
+    () =>
+      application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].contentView.children.some((view) => view.getVisible()),
+      ),
+    Boolean,
+    'Embedded page returns after dismissing the list',
+  );
+
+  await trigger.click();
+  await dialog.locator('.tab-list-choice').first().focus();
+  await page.keyboard.press('Enter');
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal((await snapshot()).activeTabId, pages[0].id);
+  assert.deepEqual(
+    (await snapshot()).tabs.map((tab) => tab.id),
+    pages.map((tab) => tab.id),
+  );
+  assert.equal(
+    await application.evaluate(
+      ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.length,
+    ),
+    5,
+  );
+  await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setSize(1060, 680),
+  );
+  await trigger.waitFor({ state: 'detached' });
+  await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setSize(1040, 680),
+  );
+  await trigger.waitFor();
+  await page.evaluate(() => window.desktop.updateSettings({ locale: 'en', theme: 'dark' }));
+  await page.getByRole('button', { name: 'All tabs (5)', exact: true }).waitFor();
+  await trigger.click();
+  await page.getByRole('dialog', { name: 'All tabs (5)', exact: true }).waitFor();
+  await page.getByText('Current', { exact: true }).waitFor();
+  await page.screenshot({ path: join(uiResults, 'all-tabs-dark-en.png'), animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setSize(1400, 680),
+  );
+  await trigger.waitFor({ state: 'detached' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
 });

@@ -21,7 +21,7 @@ test('favicon handles inline SVG and preserves icon formats as image data', asyn
   const session = pageSession(async (input, init) => {
     requests.push(typeof input === 'string' ? input : input.url);
     assert.equal(init?.redirect, 'manual');
-    assert.equal(init?.credentials, 'include');
+    assert.equal(init?.credentials, 'omit');
     if (requests.length === 1)
       return new Response(null, { status: 302, headers: { location: '/icon.ico' } });
     return new Response('icon bytes', { headers: { 'content-type': 'image/x-icon' } });

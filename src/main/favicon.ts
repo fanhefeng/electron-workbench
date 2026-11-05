@@ -28,7 +28,8 @@ export async function loadFavicon(
     const response = await session.fetch(url, {
       signal,
       redirect: 'manual',
-      credentials: 'include',
+      // The URL is controlled by remote content; never turn it into an authenticated request.
+      credentials: 'omit',
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       await response.body?.cancel();

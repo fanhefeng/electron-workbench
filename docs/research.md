@@ -51,7 +51,7 @@ preload / contextBridge
 
 ### 页签图标
 
-主进程监听网页的 `page-favicon-updated` 事件，通过远端 session 的 `fetch` 获取图标，支持常见图像格式与内联 data 图标。网络 URL 与每次重定向都按现有 HTTPS 规则校验；请求限制为 5 秒、最多 3 次重定向和 256 KiB 图像数据。主壳只接收 data 图像，维持现有 `img-src 'self' data:` CSP；不向远端增加 preload 或 Node 能力。跨文档导航和 WebContents 销毁时取消旧请求，晚到结果不能覆盖新文档的图标；图标不写入持久化描述，重新加载后由网页更新。[Electron favicon 事件](https://www.electronjs.org/docs/latest/api/web-contents#event-page-favicon-updated)、[Session fetch](https://www.electronjs.org/docs/latest/api/session#sesfetchinput-init)
+主进程监听网页的 `page-favicon-updated` 事件，通过远端 session 的 `fetch` 获取图标，支持常见图像格式与内联 data 图标。请求使用 `credentials: 'omit'`，不向网页指定的 URL 附带登录 Cookie；需要身份认证的图标使用默认图标。网络 URL 与每次重定向都按现有 HTTPS 规则校验；请求限制为 5 秒、最多 3 次重定向和 256 KiB 图像数据。主壳只接收 data 图像，维持现有 `img-src 'self' data:` CSP；不向远端增加 preload 或 Node 能力。跨文档导航和 WebContents 销毁时取消旧请求，晚到结果不能覆盖新文档的图标；图标不写入持久化描述，重新加载后由网页更新。[Electron favicon 事件](https://www.electronjs.org/docs/latest/api/web-contents#event-page-favicon-updated)、[Session fetch](https://www.electronjs.org/docs/latest/api/session#sesfetchinput-init)
 
 ## IPC 和可信内容
 
@@ -84,7 +84,7 @@ URL 输入与规范化结果均限制在 2 MiB 内，与 Chromium 的进程间 U
 
 ## 持久化与错误恢复
 
-数据文件只放在 `app.getPath('userData')`，开发和生产使用不同 app name、数据目录和深链 scheme；设置有默认值和严格 schema，tab URL 在恢复时重新校验。恢复前验证工作区根结构，语法或根结构错误的文件先备份再采用默认值，不能静默覆盖唯一副本。
+数据文件只放在 `app.getPath('userData')`，开发和生产使用不同 app name、数据目录和深链 scheme；设置按字段校验并合并默认值，无效字段或已移除字段不影响其他有效偏好；设置 IPC 仍严格拒绝非法字段。tab URL 在恢复时重新校验。恢复前验证工作区根结构，语法或根结构错误的文件先备份再采用默认值；备份失败时停止加载，避免覆盖唯一副本。
 
 写入使用单条异步队列，写同目录临时文件成功后再 rename，避免快速设置修改发生交叉写入。正常关闭窗口和退出应用时，先等待待保存状态写入，再开始网页卸载；预先保存失败时保留网页及草稿，退出前再次等待关闭期间的最终写入。日志也避免同步文件写入阻塞主进程。Node 官方说明：没有等待上次完成就对同一文件重复调用 `writeFile` 不安全。临时文件加 rename 是本模板采用的文件替换策略，不代表跨平台、断电情况下的数据库事务或绝对持久保证。[Node.js 文件系统文档](https://nodejs.org/docs/latest-v24.x/api/fs.html#fspromiseswritefilefile-data-options)
 
@@ -104,7 +104,7 @@ URL 输入与规范化结果均限制在 2 MiB 内，与 Chromium 的进程间 U
 
 `tests/packaging.test.ts` 验证实际 builder 文件过滤、父目录匹配、隐藏与中文资源、ASAR 内容和 native 文件解包、filelist 的 include/exclude，以及恶意 glob 的展开数量上限。lockfile 回归拒绝公告范围内的 minimatch；`npm audit` 检查全部开发与生产依赖。上游直接支持安全版本后，应删除对应 override 并重新验证。
 
-更新采用 `electron-updater` 6 的状态机，检查、下载、安装分开；`installing` 阻止重复安装，失败回到错误状态，只有 Electron 的实际更新退出事件才绕过托盘。没有发布配置时保持未配置。builder 显式声明 `electronUpdaterCompatibility: ">=6.8.3"`，输出客户端支持的 JSON v2 blockmap。[blockmap 兼容范围](https://www.electron.build/docs/migration/v27-build-changes/#block-map-format-follows-electronupdatercompatibility)
+更新采用 `electron-updater` 6 的状态机，检查、下载、安装分开；`installing` 阻止重复安装。安装前先保存工作区、等待网页卸载并保存最终状态；取消卸载时回到待安装状态，保存失败时保留网页及草稿。卸载完成后禁止创建新网页，安装失败时恢复工作区。只有 Electron 的实际更新退出事件才绕过托盘。没有发布配置时保持未配置。builder 显式声明 `electronUpdaterCompatibility: ">=6.8.3"`，输出客户端支持的 JSON v2 blockmap。[blockmap 兼容范围](https://www.electron.build/docs/migration/v27-build-changes/#block-map-format-follows-electronupdatercompatibility)
 
 `package` / `dist` 显式使用 `--publish never`。正式分发需要 Developer ID、公证或对应平台签名、真实 HTTPS feed、安装制品及更新元数据；v27 发布流程默认要求 Ed25519 更新清单签名，密钥由发布基础设施提供，不存入客户端或仓库。updater 6 不提供 Ed25519 清单签名校验；启用客户端清单验签需要支持该协议的客户端及完整发布验收。[清单签名要求](https://www.electron.build/docs/migration/v27-build-changes/#signed-update-manifests-are-required)、[客户端运行时变化](https://www.electron.build/docs/migration/v27-runtime-changes/)
 
@@ -130,7 +130,7 @@ Electron 45.2.2 / Chromium 156.0.8078.80 默认不暴露 `drawElementImage`。�
 
 ## 开发工具链
 
-项目使用 npm 和 lockfile，开发 Node.js 要求为 24.11+（24.x）或 26+。固定版本 Vite+ 1.4.0 提供 Vite、Rolldown、Oxc、Vitest、格式化、lint 与 TypeScript Go 类型检查。`vite` alias 与 npm override 让 electron-vite、React 插件及 Vitest 使用同一份 Vite+ core。[Vite+ 依赖规则](https://viteplus.dev/guide/migrate-rules#dependency-rules)
+项目使用 npm 和 lockfile，开发 Node.js 要求为 24.11+（24.x）或 26+。固定版本 Vite+ 1.5.0 提供 Vite、Rolldown、Oxc、Vitest、格式化、lint 与 TypeScript Go 类型检查。`vite` alias 与 npm override 让 electron-vite、React 插件及 Vitest 使用同一份 Vite+ core。[Vite+ 依赖规则](https://viteplus.dev/guide/migrate-rules#dependency-rules)
 
 `electron.vite.config.ts` 编排 main、单文件 CJS preload 和 renderer 构建；`vite.config.ts` 配置格式、lint 和单元测试。完整应用使用 `npm run dev` / `npm run build`，不使用只面向普通网页的 `vp dev` / `vp build`。[electron-vite](https://electron-vite.org/guide/)、[Vite+ 任务](https://viteplus.dev/guide/run)
 

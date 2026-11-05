@@ -203,6 +203,9 @@ nav {
   min-inline-size: 0;
   block-size: 100%;
 }
+.tab-overflow-trigger {
+  flex-shrink: 0;
+}
 .tab-scroll {
   display: flex;
   align-items: stretch;
@@ -614,7 +617,25 @@ nav {
 }
 .open-form {
   display: flex;
+  align-items: flex-start;
   gap: 9px;
+}
+.address-field {
+  flex: 1;
+  min-inline-size: 0;
+}
+.address-error {
+  margin-block-start: 5px;
+  color: var(--error);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.browser-address-error {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 5px 16px 7px;
+  border-block-end: 1px solid var(--line);
 }
 .input-with-icon {
   display: flex;
@@ -751,6 +772,9 @@ progress {
   border-color: var(--focus);
   background: var(--surface);
 }
+.address-bar[data-invalid='true'] {
+  border-color: var(--error);
+}
 .address-bar svg {
   color: var(--muted);
 }
@@ -841,6 +865,59 @@ progress {
   gap: 8px;
   padding-block-start: 14px;
   border-block-start: 1px solid var(--line);
+}
+.all-tabs-dialog {
+  inline-size: 480px;
+  max-block-size: calc(100dvh - 64px);
+  padding: 18px;
+  overflow: auto;
+}
+.all-tabs-dialog .dialog-heading {
+  margin-block-end: 10px;
+}
+.tab-overflow-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tab-overflow-list li + li {
+  border-block-start: 1px solid var(--line);
+}
+.tab-list-choice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  inline-size: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: start;
+}
+.tab-list-choice:hover {
+  background: var(--hover);
+}
+.tab-list-choice:active,
+.tab-list-choice[aria-current='page'] {
+  background: var(--selected);
+}
+.tab-list-copy {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.tab-list-copy strong,
+.tab-list-copy small {
+  display: block;
+  line-height: 1.5;
+}
+.tab-list-copy small {
+  margin-block-start: 3px;
+  font-size: 11px;
+}
+.tab-list-current {
+  flex-shrink: 0;
+  font-size: 11px;
 }
 .toast {
   position: fixed;

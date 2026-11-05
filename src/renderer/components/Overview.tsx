@@ -1,7 +1,8 @@
-import { useState, type RefObject } from 'react';
+import type { RefObject } from 'react';
 import { Bell, FileText, Folder, Link2 } from 'lucide-react';
 import type { Translate } from '../i18n';
 import { Button, TextInput } from './Primitives';
+import { useAddressForm } from '../useAddressForm';
 
 const LINKS = [
   { name: 'Electron', url: 'https://www.electronjs.org' },
@@ -19,7 +20,7 @@ export function Overview({
   run: (task: Promise<unknown>, success?: string) => void;
   addressInput: RefObject<HTMLInputElement | null>;
 }) {
-  const [url, setURL] = useState('');
+  const address = useAddressForm((url) => window.desktop.openTab(url));
   return (
     <div className="page overview">
       <header className="page-header">
@@ -28,24 +29,35 @@ export function Overview({
       </header>
       <form
         className="open-form"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          run(window.desktop.openTab(url));
+          void address.submit();
         }}
       >
-        <div className="input-with-icon">
-          <Link2 size={15} aria-hidden="true" />
-          <TextInput
-            ref={addressInput}
-            aria-label={t('addressPlaceholder')}
-            placeholder="https://example.com"
-            value={url}
-            onChange={(event) => setURL(event.target.value)}
-            required
-            spellCheck={false}
-          />
+        <div className="address-field">
+          <div className="input-with-icon">
+            <Link2 size={15} aria-hidden="true" />
+            <TextInput
+              ref={addressInput}
+              aria-label={t('addressPlaceholder')}
+              placeholder="https://example.com"
+              value={address.value}
+              onChange={(event) => address.change(event.target.value)}
+              onKeyDown={address.onKeyDown}
+              aria-invalid={!!address.error}
+              aria-describedby={address.error ? 'home-address-error' : undefined}
+              required
+              spellCheck={false}
+            />
+          </div>
+          {address.error && (
+            <p className="address-error" id="home-address-error" role="alert">
+              {t(address.error)}
+            </p>
+          )}
         </div>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" loading={address.pending}>
           {t('open')}
         </Button>
       </form>

@@ -46,11 +46,17 @@ export function settingsPatch(input: unknown): Partial<Settings> {
 }
 
 export function readSettings(input: unknown): Settings {
-  try {
-    return { ...DEFAULT_SETTINGS, ...settingsPatch(input) };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
+  const settings = { ...DEFAULT_SETTINGS };
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return settings;
+  for (const [key, value] of Object.entries(input)) {
+    if (!Object.hasOwn(DEFAULT_SETTINGS, key)) continue;
+    try {
+      Object.assign(settings, settingsPatch({ [key]: value }));
+    } catch {
+      // Invalid saved fields use their defaults without discarding other preferences.
+    }
   }
+  return settings;
 }
 
 export function parseDeepLink(value: string, scheme: string): string | null {

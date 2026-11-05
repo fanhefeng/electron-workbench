@@ -15,6 +15,9 @@ const en = {
   cancel: 'Cancel',
   close: 'Close',
   pages: 'Your pages',
+  allTabs: 'All tabs',
+  currentTab: 'Current',
+  tabSwitchFailed: 'Could not switch tabs. Please try again.',
   library: 'Quick access',
   source: 'ADDRESS',
   addressPlaceholder: 'Enter a website address',
@@ -57,7 +60,7 @@ const en = {
   downloaded: 'Ready to install',
   installing: 'Preparing to restart…',
   current: 'You are up to date',
-  error: 'Could not check for updates',
+  error: 'Update failed',
   about: 'About Workbench',
   back: 'Back',
   forward: 'Forward',
@@ -90,6 +93,7 @@ const en = {
   tabScrollHint: 'Scroll to see more pages. Drag or use Alt + Left / Right to reorder.',
   loadingApp: 'Opening workspace…',
   invalidURL: 'Enter a valid HTTPS website address.',
+  openFailed: 'Could not open this address. Please try again.',
 };
 const zh: typeof en = {
   workspace: '工作区',
@@ -106,6 +110,9 @@ const zh: typeof en = {
   cancel: '取消',
   close: '关闭',
   pages: '你的页面',
+  allTabs: '全部标签',
+  currentTab: '当前',
+  tabSwitchFailed: '暂时无法切换标签，请重试。',
   library: '快捷访问',
   source: '地址',
   addressPlaceholder: '输入网页地址',
@@ -147,7 +154,7 @@ const zh: typeof en = {
   downloaded: '更新已就绪',
   installing: '正在准备重启…',
   current: '已是最新版本',
-  error: '检查更新失败',
+  error: '更新失败',
   about: '关于 Workbench',
   back: '后退',
   forward: '前进',
@@ -180,6 +187,7 @@ const zh: typeof en = {
   tabScrollHint: '滚动查看其他页签，拖动或按 Alt + 左右方向键排序。',
   loadingApp: '正在打开工作区…',
   invalidURL: '请输入有效的 HTTPS 网页地址。',
+  openFailed: '暂时无法打开这个地址，请重试。',
 };
 export type MessageKey = keyof typeof en;
 export function translator(locale: Locale) {

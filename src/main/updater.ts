@@ -7,7 +7,10 @@ export class Updater {
   state: UpdateState = { status: 'unconfigured' };
   private updater?: import('electron-updater').AppUpdater;
   private initializing: Promise<void>;
-  constructor(private changed: () => void) {
+  constructor(
+    private changed: () => void,
+    private prepareInstall: () => Promise<boolean>,
+  ) {
     this.initializing = this.initialize().catch((error: unknown) => {
       this.state = { status: 'error', error: String(error) };
       this.changed();
@@ -63,9 +66,15 @@ export class Updater {
       await this.updater.downloadUpdate();
     }
     if (action === 'install' && this.state.status === 'downloaded') {
+      const downloaded = this.state;
       this.state = { ...this.state, status: 'installing' };
       this.changed();
       try {
+        if (!(await this.prepareInstall())) {
+          this.state = downloaded;
+          this.changed();
+          return;
+        }
         this.updater.quitAndInstall();
       } catch (error) {
         this.state = { status: 'error', error: String(error) };
