@@ -64,7 +64,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y xvfb xauth openbox libgtk-3-0t64 libnss3 libasound2t64 libgbm1
+          sudo apt-get install --no-install-recommends -y xvfb xauth openbox dbus-x11 dunst libnotify4 libglib2.0-bin libgtk-3-0t64 libnss3 libasound2t64 libgbm1
           # Permit Chromium's user-namespace sandbox inside this ephemeral VM.
           if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -74,7 +74,12 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             if xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
-              bash -c 'openbox >/tmp/workbench-openbox.log 2>&1 & npm run test:e2e'; then exit 0; fi
+              dbus-run-session -- bash -e -c '
+                openbox >/tmp/workbench-openbox.log 2>&1 &
+                dunst >/tmp/workbench-notifications.log 2>&1 &
+                gdbus wait --session --timeout 10 org.freedesktop.Notifications
+                npm run test:e2e
+              '; then exit 0; fi
             if [[ "$attempt" == 3 ]]; then exit 1; fi
             echo "Native desktop input test failed; retrying in a fresh Electron process ($attempt/2)."
           done

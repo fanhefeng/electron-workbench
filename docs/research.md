@@ -110,7 +110,7 @@ URL 输入与规范化结果均限制在 2 MiB 内，与 Chromium 的进程间 U
 
 GitHub Actions 使用独立平台 runner 构建 macOS arm64 / x64、Windows x64 和 Linux x64。`WORKBENCH_UNSIGNED_RELEASE=1` 固定 macOS ad-hoc 签名、显式跳过公证并关闭 Windows 签名；更新源非空时拒绝构建。builder 只构建文件；GitHub CLI 在所有作业成功后创建草稿、上传完整安装包和 SHA-256 清单，再公开 Release。该分发方式不发布自动更新元数据，不需要更新清单签名密钥。安装与系统放行步骤见 [安装说明](install.md)。
 
-CI 桌面测试使用 Linux 的 Xvfb 和 Openbox 提供独立显示及窗口管理；允许隔离 VM 创建用户命名空间，应用继续启用 Chromium sandbox，不使用 `--no-sandbox`。macOS 两种架构仍在原生 runner 打包并验证代码签名。[Electron 无显示器测试](https://www.electronjs.org/docs/latest/tutorial/testing-on-headless-ci)
+CI 桌面测试使用 Linux 的 Xvfb 和 Openbox 提供独立显示及窗口管理，独立 D-Bus 会话中的 Dunst 提供通知服务；允许隔离 VM 创建用户命名空间，应用继续启用 Chromium sandbox，不使用 `--no-sandbox`。macOS 两种架构仍在原生 runner 打包并验证代码签名。[Electron 无显示器测试](https://www.electronjs.org/docs/latest/tutorial/testing-on-headless-ci)
 
 流程默认只有仓库读取权限，仅标签发布作业具有内容写入权限；Action 依赖固定完整提交 SHA，checkout 不保留凭据。标签必须等于 `v` 加包版本，制品名称包含平台和架构，发布前验证六个非空文件的完整集合。普通推送、PR 和手动运行只上传临时 artifacts。[GitHub runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)、[Actions 安全实践](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)、[ad-hoc 签名](https://www.electron.build/docs/features/code-signing/code-signing-mac/)
 
