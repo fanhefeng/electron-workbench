@@ -144,6 +144,27 @@ const waitState = async (target, predicate, argument) => {
   }
   throw new Error(`State did not settle: ${predicate}`);
 };
+const focusContents = async (url) => {
+  await application.evaluate(({ BrowserWindow, webContents }, url) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window.focus();
+    const contents = url
+      ? webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      : window.webContents;
+    contents.focus();
+  }, url);
+  await waitState(
+    application,
+    ({ BrowserWindow, webContents }, url) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      const contents = url
+        ? webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+        : window.webContents;
+      return window.isFocused() && contents?.isFocused();
+    },
+    url,
+  );
+};
 try {
   let page = await launch();
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -288,12 +309,10 @@ try {
       'none',
     );
   }
-  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
-  await waitState(application, ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused());
+  await focusContents();
   await application.evaluate(({ BrowserWindow }) => {
     const wc = BrowserWindow.getAllWindows()[0].webContents;
     const modifiers = [process.platform === 'darwin' ? 'meta' : 'control'];
-    wc.focus();
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'T', modifiers });
     wc.sendInputEvent({ type: 'keyUp', keyCode: 'T', modifiers });
   });
@@ -341,13 +360,13 @@ try {
       await page.locator('.address-bar input').press(`Control+${key}`);
     assert.equal((await snapshot(page)).tabs.length, 1, 'Control must not close macOS tabs');
     assert.equal(await page.getByRole('dialog').count(), 0);
+    await focusContents(`${local}/first`);
     await application.evaluate(async ({ webContents }, url) => {
       const wc = webContents.getAllWebContents().find((wc) => wc.getURL() === url);
       await wc.executeJavaScript(`
         window.controlKeys = [];
         window.addEventListener('keydown', event => window.controlKeys.push(event.key.toLowerCase()));
       `);
-      wc.focus();
       for (const keyCode of ['T', 'L', 'W']) {
         wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers: ['control'] });
         if (!wc.isDestroyed())
@@ -397,11 +416,10 @@ try {
       zoom,
     );
   }
-  await application.evaluate(({ BrowserWindow, webContents }, url) => {
-    BrowserWindow.getAllWindows()[0].focus();
+  await focusContents(`${local}/first`);
+  await application.evaluate(({ webContents }, url) => {
     const wc = webContents.getAllWebContents().find((wc) => wc.getURL() === url);
     const modifiers = [process.platform === 'darwin' ? 'meta' : 'control'];
-    wc.focus();
     wc.sendInputEvent({ type: 'keyDown', keyCode: ',', modifiers });
     wc.sendInputEvent({ type: 'keyUp', keyCode: ',', modifiers });
   }, `${local}/first`);
@@ -903,10 +921,10 @@ try {
   await waitState(page, async () => (await window.desktop.getSnapshot()).settings.htmlInCanvas);
   await page.getByRole('tab', { name: 'Canvas probe', exact: true }).click();
   // CDP key dispatch bypasses Electron's before-input-event; use native key events.
+  await focusContents(canvasCurrent);
   await application.evaluate(({ webContents }, url) => {
     const wc = webContents.getAllWebContents().find((item) => item.getURL() === url);
     const modifiers = [process.platform === 'darwin' ? 'meta' : 'control'];
-    wc.focus();
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'R', modifiers });
     if (!wc.isDestroyed()) wc.sendInputEvent({ type: 'keyUp', keyCode: 'R', modifiers });
   }, canvasCurrent);
@@ -919,9 +937,9 @@ try {
   await canvasSwitch.click();
   await waitState(page, async () => !(await window.desktop.getSnapshot()).settings.htmlInCanvas);
   await page.getByRole('tab', { name: 'Canvas probe', exact: true }).click();
+  await focusContents(canvasCurrent);
   await application.evaluate(({ webContents }, url) => {
     const wc = webContents.getAllWebContents().find((item) => item.getURL() === url);
-    wc.focus();
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'F5' });
     if (!wc.isDestroyed()) wc.sendInputEvent({ type: 'keyUp', keyCode: 'F5' });
   }, canvasCurrent);
