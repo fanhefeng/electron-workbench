@@ -317,7 +317,8 @@ try {
     wc.sendInputEvent({ type: 'keyUp', keyCode: 'T', modifiers });
   });
   await page.getByRole('dialog').waitFor();
-  await page.keyboard.press('Escape');
+  await page.locator('#new-url').press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
   for (const patch of [{ theme: ['dark'] }, { accent: ['moss'] }, { locale: ['en'] }])
     await assert.rejects(page.evaluate((input) => window.desktop.updateSettings(input), patch));
   assert.equal((await snapshot(page)).settings.locale, 'zh');
