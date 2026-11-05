@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ inputs.windows_release && '-verify-windows-release' || '' }}
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 defaults:

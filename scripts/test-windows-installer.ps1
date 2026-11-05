@@ -8,7 +8,7 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 
 function Get-WorkbenchRegistration {
     Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
-        Where-Object DisplayName -eq 'Workbench'
+        Where-Object { $_.DisplayVersion -and $_.DisplayName -eq "Workbench $($_.DisplayVersion)" }
 }
 
 function Invoke-Nsis([string]$Path, [string]$Arguments) {
