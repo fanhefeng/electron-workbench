@@ -34,9 +34,9 @@ open /Applications/Workbench.app
 
 ## Windows
 
-下载 `win-x64.exe`，核对 SHA-256 后双击运行。安装到当前用户账户，完成后会打开 Workbench。以后可从开始菜单启动，在“设置”的“已安装的应用”中卸载。
+下载 `win-x64.exe`，核对 SHA-256 后双击运行。按安装向导选择仅为当前用户或为所有用户安装，点击“下一步”，选择安装目录后点击“安装”。完成时可选择是否启动 Workbench。以后可从开始菜单启动，在“设置”的“已安装的应用”中卸载。
 
-Download `win-x64.exe`, verify its SHA-256, and double-click it. Setup installs for the current user and opens Workbench when finished. Use the Start menu to launch it again, or Settings, Installed apps to uninstall it.
+Download `win-x64.exe`, verify its SHA-256, and double-click it. In the setup wizard, choose whether to install for the current user or all users, click Next, then choose a folder and click Install. On the final page, you can choose whether to open Workbench. Use the Start menu to launch it again, or Settings, Installed apps to uninstall it.
 
 安装包未签名。SmartScreen 提示无法识别应用时，如有“更多信息”和“仍要运行”选项，可在确认来源和校验值后选择。启用了 Smart App Control 或受组织策略管理的设备可能会阻止安装。
 
@@ -51,8 +51,8 @@ The installer is unsigned. If SmartScreen warns about an unrecognized app, confi
 Run these commands in the download directory, replacing the version in the filename:
 
 ```bash
-chmod +x Workbench-0.1.2-linux-x86_64.AppImage
-./Workbench-0.1.2-linux-x86_64.AppImage
+chmod +x Workbench-0.1.3-linux-x86_64.AppImage
+./Workbench-0.1.3-linux-x86_64.AppImage
 ```
 
 ## 校验下载 / Verify downloads
@@ -63,14 +63,14 @@ The release includes `SHA256SUMS`. Calculate your downloaded file's SHA-256 and 
 
 ```bash
 # macOS
-shasum -a 256 Workbench-0.1.2-mac-arm64.dmg
+shasum -a 256 Workbench-0.1.3-mac-arm64.dmg
 # Linux
-sha256sum Workbench-0.1.2-linux-x86_64.AppImage
+sha256sum Workbench-0.1.3-linux-x86_64.AppImage
 ```
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\Workbench-0.1.2-win-x64.exe -Algorithm SHA256
+Get-FileHash .\Workbench-0.1.3-win-x64.exe -Algorithm SHA256
 ```
 
 当前下载版本不启用应用内自动更新；更新时下载新版并重新安装。

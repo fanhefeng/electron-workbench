@@ -99,7 +99,7 @@ jobs:
         timeout-minutes: 5
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          ./scripts/test-windows-installer.ps1 -Installer "release/Workbench-$version-win-x64.exe" -Version $version
+          ./scripts/test-windows-installer.ps1 -Installer "release/Workbench-$version-win-x64.exe" -Version $version -RequireWizard
       - name: Verify macOS signature
         if: matrix.platform == 'mac'
         env:
