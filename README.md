@@ -6,6 +6,8 @@
 
 从 [GitHub Releases](https://github.com/fanhefeng/electron-workbench/releases) 下载 macOS Apple Silicon / Intel、Windows x64 或 Linux x64 安装包。当前版本没有 Developer ID、公证或 Windows 代码签名，首次运行的系统放行步骤及 SHA-256 校验方法见 [安装说明](docs/install.md)。
 
+macOS 首次打开 Workbench 被系统拦截时，见 [解除下载隔离并启动](docs/install.md#macos)。
+
 ## 开发
 
 需要 Node.js 24.11+（24.x）或 26+，使用 npm 管理依赖。

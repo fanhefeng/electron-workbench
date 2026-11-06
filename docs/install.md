@@ -21,14 +21,18 @@ Download an installer attached to this release. GitHub's automatically generated
 
 1. 打开 DMG，将 Workbench 拖入“应用程序”；使用 ZIP 时，解压后将 Workbench.app 移入“应用程序”。
 2. 首次尝试打开后，如系统拦截，进入“系统设置”的“隐私与安全性”，找到 Workbench 并点击“仍要打开”，再确认打开。
-3. 如果 ad-hoc 应用仍被隔离拦截，确认来源和校验值后，在终端执行下面的命令，再打开 Workbench。命令只移除已安装 Workbench 的下载隔离标记；受组织管理的设备可能禁止用户放行。
+3. 如果 Workbench 仍被下载隔离拦截，或点击“仍要打开”后 Dock 图标一直跳动且没有窗口，先退出仍在运行的 Workbench，必要时强制退出。确认下载来源和 SHA-256 后，在终端执行下面两条命令，移除这个 Workbench 副本的下载隔离标记并启动应用。受组织管理的设备可能禁止用户放行。
 
-Open the DMG and drag Workbench into Applications, or extract the ZIP and move Workbench.app there. After trying to launch it, approve Workbench in System Settings, Privacy & Security, Open Anyway. If quarantine still blocks this ad-hoc build, verify the download and run the following command for this app, then launch it again. Managed devices may prevent these overrides.
+Open the DMG and drag Workbench into Applications, or extract the ZIP and move Workbench.app there. After trying to launch it, approve Workbench in System Settings, Privacy & Security, Open Anyway. If quarantine still blocks the app or the Dock icon keeps bouncing without a window, quit Workbench if it is running. Force quit if it does not respond. Verify the download source and SHA-256, then run the following two commands to clear the quarantine attribute from this copy and launch it. Managed devices may prevent these overrides.
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Workbench.app
 open /Applications/Workbench.app
 ```
+
+如果从 `/Applications` 启动仍卡住，从同一个已校验的安装包复制一份新的 `Workbench.app` 到个人“应用程序”目录 `~/Applications`（没有该目录就先创建）。将上述两条命令中的 `/Applications/Workbench.app` 替换为 `"$HOME/Applications/Workbench.app"`。确认新副本能打开后，移走旧副本，避免从 Dock 或 Spotlight 打开旧版。工作区和设置会沿用。
+
+If launching from `/Applications` still stalls, copy a fresh `Workbench.app` from the verified installer into your own Applications folder, `~/Applications`, creating the folder if needed. Replace `/Applications/Workbench.app` in both commands with `"$HOME/Applications/Workbench.app"`. Once the new copy opens, move the old copy aside so Dock or Spotlight does not launch it. The new copy uses your existing workspace and settings.
 
 参考 / Reference: [Apple：打开未公证或未知开发者的应用 / Open an app from an unidentified developer](https://support.apple.com/en-us/102445)。
 
