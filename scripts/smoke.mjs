@@ -325,6 +325,7 @@ try {
   await newTabButton.click();
   await page.locator('#new-url').pressSequentially('example.com');
   await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert.equal(
     await newTabButton.evaluate((el) => window.getComputedStyle(el).outlineStyle),
     'none',
