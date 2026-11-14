@@ -1109,3 +1109,23 @@ await test('overflow list is conditional, keyboard accessible, and preserves emb
   await trigger.waitFor({ state: 'detached' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
 });
+
+await test('operation failures stay readable and do not overlap the native page', async (t) => {
+  const { page, open } = await launch(t);
+  await page.evaluate(() => window.desktop.updateSettings({ notifications: false }));
+  await page.getByRole('button', { name: '发送通知', exact: true }).click();
+  const alert = page.getByRole('alert');
+  await alert.waitFor();
+  assert.match(await alert.innerText(), /操作未完成/);
+  await alert.getByText('技术详情').click();
+  assert.match(await alert.innerText(), /Notifications are disabled/);
+  await page.waitForTimeout(4500);
+  assert.equal(await alert.isVisible(), true);
+  await open('error-banner');
+  const errorBounds = await alert.boundingBox();
+  const pageBounds = await page.locator('.web-viewport').boundingBox();
+  assert.ok(errorBounds.y + errorBounds.height <= pageBounds.y);
+  await page.screenshot({ path: '/tmp/workbench-operation-error.png' });
+  await alert.getByRole('button', { name: '关闭', exact: true }).click();
+  assert.equal(await page.getByRole('alert').count(), 0);
+});

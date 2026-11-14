@@ -1,6 +1,9 @@
 import type { Locale } from '../shared/model.ts';
 
 const en = {
+  operationFailed: 'Could not complete the action',
+  operationFailedHint: 'Check the details below, then try the action again.',
+  errorDetails: 'Technical details',
   workspace: 'Workspace',
   workspaceIntro: 'Open a website or choose a saved link.',
   settingsIntro: 'Appearance and desktop preferences.',
@@ -96,6 +99,9 @@ const en = {
   openFailed: 'Could not open this address. Please try again.',
 };
 const zh: typeof en = {
+  operationFailed: '操作未完成',
+  operationFailedHint: '查看下方原因后，可以重新执行该操作。',
+  errorDetails: '技术详情',
   workspace: '工作区',
   workspaceIntro: '输入地址，或打开常用页面。',
   settingsIntro: '管理外观和桌面偏好。',

@@ -992,3 +992,35 @@ progress {
     background: Highlight;
   }
 }
+
+.operation-error {
+  flex: none;
+  max-block-size: 30vh;
+  overflow: auto;
+  display: flex;
+  align-items: start;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  z-index: 10;
+}
+.operation-error > div {
+  flex: 1;
+  min-inline-size: 0;
+}
+.operation-error p {
+  margin-block: 4px 10px;
+  color: var(--muted);
+}
+.operation-error summary {
+  cursor: pointer;
+}
+.operation-error code {
+  display: block;
+  margin-block-start: 8px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}

@@ -28,6 +28,7 @@ export function App() {
   const [switchingTab, setSwitchingTab] = useState<string | null>(null);
   const dialogSession = useRef(0);
   const [toast, setToast] = useState('');
+  const [operationError, setOperationError] = useState<string | null>(null);
   const [focusAddress, setFocusAddress] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
@@ -54,7 +55,7 @@ export function App() {
           if (success) notify(success);
         })
         .catch((error) =>
-          notify(
+          setOperationError(
             String(error).replace(
               /^Error: (Error invoking remote method '[^']+': )?(Error: )?/,
               '',
@@ -235,6 +236,22 @@ export function App() {
           </nav>
         </header>
         <TabStrip state={state} t={t} run={run} newTab={newTab} showAllTabs={showAllTabs} />
+        {operationError && (
+          <div className="operation-error" role="alert">
+            <div>
+              <strong>{t('operationFailed')}</strong>
+              <p>{t('operationFailedHint')}</p>
+              <details>
+                <summary>{t('errorDetails')}</summary>
+                <code>{operationError}</code>
+              </details>
+            </div>
+            <Button size="small" onClick={() => setOperationError(null)}>
+              {t('close')}
+            </Button>
+          </div>
+        )}
+
         <div
           id="workspace-panel"
           className="content"
