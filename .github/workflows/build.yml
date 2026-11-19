@@ -92,6 +92,9 @@ jobs:
             echo "Native desktop input test failed; retrying in a fresh Electron process ($attempt/2)."
           done
       - name: Build installers
+        env:
+          # Credential-free ad-hoc integrity signing only; config rejects this for signed releases.
+          CSC_FOR_PULL_REQUEST: ${{ matrix.platform == 'mac' && 'true' || 'false' }}
         run: npm run dist -- --${{ matrix.platform }} --${{ matrix.arch }}
       - name: Test Windows installation and first launch
         if: matrix.platform == 'win'

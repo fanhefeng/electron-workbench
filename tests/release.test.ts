@@ -133,3 +133,28 @@ test('release notes stay outside assets and use one generation path for create a
     await rm(changelog, { force: true });
   }
 });
+
+test('pull-request signing is restricted to ad-hoc builds without publishing or notarization', async () => {
+  const config = new URL('../electron-builder.config.mjs', import.meta.url).href;
+  const args = [
+    '--input-type=module',
+    '-e',
+    `import config from ${JSON.stringify(config)}; console.log(JSON.stringify(config));`,
+  ];
+  const env = {
+    ...process.env,
+    CSC_FOR_PULL_REQUEST: 'true',
+    WORKBENCH_UNSIGNED_RELEASE: '1',
+    WORKBENCH_SIGN_IDENTITY: 'must not be used',
+  };
+  const { stdout } = await execute(process.execPath, args, { env });
+  const result = JSON.parse(stdout);
+  assert.equal(result.mac.sign.identity, '-');
+  assert.equal(result.mac.notarize, false);
+  assert.equal(result.win.sign, false);
+  assert.equal(result.publish, null);
+  await assert.rejects(
+    execute(process.execPath, args, { env: { ...env, WORKBENCH_UNSIGNED_RELEASE: '0' } }),
+    /credential-free ad-hoc/,
+  );
+});
