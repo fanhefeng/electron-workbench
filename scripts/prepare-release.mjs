@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { renderInstallNotes } from './release-notes.mjs';
 
 const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const lock = JSON.parse(await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'));
@@ -9,6 +10,8 @@ if (lock.version !== version || lock.packages[''].version !== version)
   throw new Error('package.json and package-lock.json versions must match');
 const tag = process.env.GITHUB_REF_NAME;
 if (tag !== `v${version}`) throw new Error(`Expected version tag v${version}, received ${tag}`);
+const template = await readFile(new URL('../docs/install.md', import.meta.url), 'utf8');
+renderInstallNotes(template, version);
 if (process.argv[2] === '--check-tag') process.exit(0);
 if (!process.argv[2]) throw new Error('An installer directory is required');
 
@@ -39,3 +42,12 @@ for (const name of expected) {
 }
 await writeFile(join(directory, 'SHA256SUMS'), `${checksums.join('\n')}\n`);
 console.log(`Verified ${expected.length} installers for ${tag}; wrote SHA256SUMS.`);
+
+if (process.argv[3]) {
+  const destination = resolve(process.argv[3]);
+  const location = relative(directory, destination);
+  if (!isAbsolute(location) && location !== '..' && !location.startsWith('..' + sep))
+    throw new Error('Release notes must be outside the installer directory');
+  const changelog = process.argv[4] ? await readFile(process.argv[4], 'utf8') : '';
+  await writeFile(destination, renderInstallNotes(template, version, changelog));
+}

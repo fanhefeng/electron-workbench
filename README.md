@@ -6,7 +6,7 @@
 
 从 [GitHub Releases](https://github.com/fanhefeng/electron-workbench/releases) 下载 macOS Apple Silicon / Intel、Windows x64 或 Linux x64 安装包。当前版本没有 Developer ID、公证或 Windows 代码签名，首次运行的系统放行步骤及 SHA-256 校验方法见 [安装说明](docs/install.md)。
 
-macOS 首次打开 Workbench 被系统拦截时，见 [解除下载隔离并启动](docs/install.md#macos)。
+macOS 首次打开 Workbench 被系统拦截时，见 [macOS 安全提示与启动排障](docs/install.md#macos)。
 
 ## 开发
 

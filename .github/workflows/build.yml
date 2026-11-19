@@ -92,6 +92,9 @@ jobs:
             echo "Native desktop input test failed; retrying in a fresh Electron process ($attempt/2)."
           done
       - name: Build installers
+        env:
+          # Credential-free ad-hoc integrity signing only; config rejects this for signed releases.
+          CSC_FOR_PULL_REQUEST: ${{ matrix.platform == 'mac' && 'true' || 'false' }}
         run: npm run dist -- --${{ matrix.platform }} --${{ matrix.arch }}
       - name: Test Windows installation and first launch
         if: matrix.platform == 'win'
@@ -199,11 +202,16 @@ jobs:
               echo 'This release is already published; its assets will not be replaced.' >&2
               exit 1
             fi
+          fi
+          gh api --method POST "repos/$GH_REPO/releases/generate-notes" \
+            -f tag_name="$RELEASE_TAG" --jq .body > "$RUNNER_TEMP/changelog.md"
+          node scripts/prepare-release.mjs release-assets "$RUNNER_TEMP/release-notes.md" "$RUNNER_TEMP/changelog.md"
+          if [[ "${draft:-false}" == true ]]; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
-            gh release edit "$RELEASE_TAG" --notes-file docs/install.md
+            gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           else
             gh release create "$RELEASE_TAG" release-assets/* \
               --verify-tag --draft --title "Workbench $RELEASE_TAG" \
-              --generate-notes --notes-file docs/install.md --prerelease="$prerelease"
+              --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease="$prerelease"
           fi
           gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease"
