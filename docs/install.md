@@ -19,22 +19,21 @@ Download an installer attached to this release. GitHub's automatically generated
 
 ## macOS
 
-1. 打开 DMG，将 Workbench 拖入“应用程序”；使用 ZIP 时，解压后将 Workbench.app 移入“应用程序”。
-2. 首次尝试打开后，如系统拦截，进入“系统设置”的“隐私与安全性”，找到 Workbench 并点击“仍要打开”，再确认打开。
-3. 如果 Workbench 仍被下载隔离拦截，或点击“仍要打开”后 Dock 图标一直跳动且没有窗口，先退出仍在运行的 Workbench，必要时强制退出。确认下载来源和 SHA-256 后，在终端执行下面两条命令，移除这个 Workbench 副本的下载隔离标记并启动应用。受组织管理的设备可能禁止用户放行。
+1. 仅从本仓库的发布页下载，核对版本、芯片架构及 SHA256SUMS。摘要一致只确认文件身份，不代表应用安全或开发者可信。
+2. 打开 DMG，将 Workbench 拖入“应用程序”；使用 ZIP 时，解压后将 Workbench.app 移入“应用程序”。
+3. 此版本只有 ad-hoc 完整性签名，未经 Developer ID 签名或 Apple 公证。对于无法验证开发者的提示，仅在核实来源并自行决定信任后参考 Apple 指引；需要 Apple 验证版本的用户应等待签名、公证版本。
+4. 「已损坏／被修改／将损坏电脑」不能当作普通的开发者验证提示。请停止打开，重新下载官方副本；警告持续时联系维护者。不要移除隔离属性或关闭 Gatekeeper 来规避。
+5. Dock 图标持续跳动但没有窗口属于尚待诊断的启动问题，不能据此判断是隔离标记造成。请记录系统版本与提示并联系维护者，不要通过修改安全设置处理。受组织管理的设备请联系管理员。
 
-Open the DMG and drag Workbench into Applications, or extract the ZIP and move Workbench.app there. After trying to launch it, approve Workbench in System Settings, Privacy & Security, Open Anyway. If quarantine still blocks the app or the Dock icon keeps bouncing without a window, quit Workbench if it is running. Force quit if it does not respond. Verify the download source and SHA-256, then run the following two commands to clear the quarantine attribute from this copy and launch it. Managed devices may prevent these overrides.
+Download only from this repository's releases and verify the version, architecture and SHA256SUMS. A matching hash confirms file identity, not safety or developer trust. Open the DMG and drag Workbench into Applications, or extract the ZIP and move Workbench.app there.
 
-```bash
-xattr -dr com.apple.quarantine /Applications/Workbench.app
-open /Applications/Workbench.app
-```
+This build has only an ad-hoc integrity signature, not Developer ID signing or Apple notarization. For an unidentified-developer warning, consult Apple's guidance only after verifying the source and deciding to trust the app. Wait for a signed, notarized release if you require Apple verification.
 
-如果从 `/Applications` 启动仍卡住，从同一个已校验的安装包复制一份新的 `Workbench.app` 到个人“应用程序”目录 `~/Applications`（没有该目录就先创建）。将上述两条命令中的 `/Applications/Workbench.app` 替换为 `"$HOME/Applications/Workbench.app"`。确认新副本能打开后，移走旧副本，避免从 Dock 或 Spotlight 打开旧版。工作区和设置会沿用。
+Damage, modification or malware warnings are not ordinary developer-verification warnings. Stop opening the app, obtain a fresh official copy, and contact the maintainer if the warning persists. Do not remove quarantine attributes or disable Gatekeeper to bypass it.
 
-If launching from `/Applications` still stalls, copy a fresh `Workbench.app` from the verified installer into your own Applications folder, `~/Applications`, creating the folder if needed. Replace `/Applications/Workbench.app` in both commands with `"$HOME/Applications/Workbench.app"`. Once the new copy opens, move the old copy aside so Dock or Spotlight does not launch it. The new copy uses your existing workspace and settings.
+A bouncing Dock icon without a window is an undiagnosed launch problem, not evidence of a quarantine issue. Record your macOS version and any warning and contact the maintainer; do not change security settings to work around it. Contact your administrator on managed devices.
 
-参考 / Reference: [Apple：打开未公证或未知开发者的应用 / Open an app from an unidentified developer](https://support.apple.com/en-us/102445)。
+参考 / Reference: [Apple：安全地打开 Mac 上的应用 / Safely open apps on your Mac](https://support.apple.com/en-us/102445)。
 
 ## Windows
 
@@ -50,13 +49,13 @@ The installer is unsigned. If SmartScreen warns about an unrecognized app, confi
 
 ## Linux
 
-在下载目录执行，替换文件名中的版本号：
+本文的 {{VERSION}} 表示所下载版本；发布页会自动填入准确版本号。请在下载目录执行：
 
-Run these commands in the download directory, replacing the version in the filename:
+In this guide, {{VERSION}} means the downloaded version; release notes fill it automatically. Run these commands in the download directory:
 
 ```bash
-chmod +x Workbench-0.1.3-linux-x86_64.AppImage
-./Workbench-0.1.3-linux-x86_64.AppImage
+chmod +x Workbench-{{VERSION}}-linux-x86_64.AppImage
+./Workbench-{{VERSION}}-linux-x86_64.AppImage
 ```
 
 ## 校验下载 / Verify downloads
@@ -67,14 +66,14 @@ The release includes `SHA256SUMS`. Calculate your downloaded file's SHA-256 and 
 
 ```bash
 # macOS
-shasum -a 256 Workbench-0.1.3-mac-arm64.dmg
+shasum -a 256 Workbench-{{VERSION}}-mac-arm64.dmg
 # Linux
-sha256sum Workbench-0.1.3-linux-x86_64.AppImage
+sha256sum Workbench-{{VERSION}}-linux-x86_64.AppImage
 ```
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\Workbench-0.1.3-win-x64.exe -Algorithm SHA256
+Get-FileHash .\Workbench-{{VERSION}}-win-x64.exe -Algorithm SHA256
 ```
 
 当前下载版本不启用应用内自动更新；更新时下载新版并重新安装。

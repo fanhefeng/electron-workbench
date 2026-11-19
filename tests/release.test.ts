@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Arch, getArtifactArchName } from 'builder-util';
@@ -68,5 +68,68 @@ test('release hashes every platform and architecture without modifying installer
     assert.equal(await readFile(join(directory, 'SHA256SUMS'), 'utf8'), expected);
   } finally {
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('install notes render current and future versions and preserve changelog', async () => {
+  const helper = new URL('../scripts/release-notes.mjs', import.meta.url).href;
+  const template = await readFile(new URL('../docs/install.md', import.meta.url), 'utf8');
+  const changelog =
+    '**Full Changelog**: https://github.com/fanhefeng/electron-workbench/compare/v0.1.3...v0.1.4';
+  const render = (text: string, target: string) =>
+    execute(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `import { renderInstallNotes } from ${JSON.stringify(helper)}; console.log(renderInstallNotes(${JSON.stringify(text)}, ${JSON.stringify(target)}, ${JSON.stringify(changelog)}));`,
+    ]);
+  for (const target of [version, '0.2.0', '0.2.0-beta.1']) {
+    const { stdout } = await render(template, target);
+    assert.ok(stdout.includes(`Workbench-${target}-linux-x86_64.AppImage`));
+    assert.ok(stdout.includes(changelog));
+    assert.ok(!stdout.includes('{{'));
+    assert.ok(!stdout.includes('xattr -'));
+  }
+  await assert.rejects(
+    render(template + '\nWorkbench-0.0.1-mac-arm64.dmg', version),
+    /Unexpected installer/,
+  );
+  await assert.rejects(render(template + '\n{{UNKNOWN}}', version), /Invalid install guide/);
+  await assert.rejects(
+    render(template + '\nxattr -dr com.apple.quarantine app', version),
+    /security bypass/,
+  );
+  await assert.rejects(render(template, '../invalid'), /Invalid release version/);
+});
+
+test('release notes stay outside assets and use one generation path for create and draft edit', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'workbench-release-notes-'));
+  const notes = join(directory, '..', `${basename(directory)}-notes.md`);
+  const changelog = join(directory, '..', `${basename(directory)}-changelog.md`);
+  try {
+    for (const name of installers) await writeFile(join(directory, name), 'fixture');
+    await writeFile(changelog, '**Full Changelog**: preserved');
+    await run([directory, notes, changelog]);
+    const first = await readFile(notes, 'utf8');
+    assert.ok(first.includes('**Full Changelog**: preserved'));
+    await run([directory, notes, changelog]);
+    assert.equal(await readFile(notes, 'utf8'), first);
+    await assert.rejects(run([directory, join(directory, 'notes.md')]), /outside the installer/);
+    const workflow = await readFile(
+      new URL('../.github/workflows/build.yml', import.meta.url),
+      'utf8',
+    );
+    assert.equal(
+      (workflow.match(/--notes-file "\$RUNNER_TEMP\/release-notes.md"/g) || []).length,
+      2,
+    );
+    assert.ok(
+      workflow.indexOf('its assets will not be replaced') <
+        workflow.indexOf('releases/generate-notes'),
+    );
+    assert.ok(!workflow.includes('--notes-file docs/install.md'));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+    await rm(notes, { force: true });
+    await rm(changelog, { force: true });
   }
 });

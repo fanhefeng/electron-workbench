@@ -4,7 +4,7 @@
 
 ## 版本基线
 
-项目固定 **Electron 45.2.2**，内含 Chromium 156.0.8078.80、Node.js 24.22.2、V8 15.6.75.27；固定具体 Electron 版本并提交 lockfile，升级时重新跑桌面端验证。[版本页](https://releases.electronjs.org/release/v45.2.2)
+项目固定 **Electron 45.4.1**，内含 Chromium 156.0.8078.100、Node.js 24.22.3、V8 15.6.75.57-electron.c2a1644ee688c616；固定具体 Electron 版本并提交 lockfile，升级时重新跑桌面端验证。[版本页](https://releases.electronjs.org/release/v45.4.1)
 
 | 运行时约束                                                                                            | 实现                                                                |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -128,7 +128,7 @@ CI 桌面测试使用 Linux 的 Xvfb 和 Openbox 提供独立显示及窗口管�
 
 Electron 提供 `enableBlinkFeatures` / `disableBlinkFeatures`，用于按名称控制 Blink 功能。本模板只映射固定的 `CanvasDrawElement`，不开放任意 flags，不启用整个 `experimentalFeatures` 集合。[Electron WebPreferences](https://www.electronjs.org/docs/latest/api/structures/web-preferences)
 
-Electron 45.2.2 / Chromium 156.0.8078.80 默认不暴露 `drawElementImage`。启用后，通过带 `layoutsubtree` 的 canvas 绘制 HTML；Electron E2E 验证实际像素。API 写法须与内核版本匹配，升级时重新验证。[HTML-in-Canvas API 依据](https://developer.chrome.com/blog/html-in-canvas-origin-trial)
+HTML-in-Canvas 在默认配置下不暴露 `drawElementImage`。启用后，通过带 `layoutsubtree` 的 canvas 绘制 HTML；Electron E2E 验证实际像素。API 写法须与内核版本匹配，升级时重新验证。[HTML-in-Canvas API 依据](https://developer.chrome.com/blog/html-in-canvas-origin-trial)
 
 `htmlInCanvas` 作为严格布尔设置，默认 false，通过主进程设置 IPC 与 Storage 串行写入，与其他设置共用默认值合并和校验。每次创建网页 View 时读取当前配置，并按 View 记录已应用值。切换设置不立即重载页面；显式刷新时比较配置，仅在值不同时重建容器。通过 navigationHistory.getAllEntries / restore 恢复历史与当前索引，保留同一 tab 描述、排序、缩放和静音状态；替换前先关闭当前容器，异步事件校验 View 身份；网页取消 beforeunload 时保留当前容器。普通刷新、强制刷新、Cmd / Ctrl + R 和 F5 均经同一控制入口。Electron 的 restore 对表单和滚动位置属于尽力恢复，不承诺完整复制网页运行状态。[NavigationHistory restore](https://www.electronjs.org/docs/latest/api/navigation-history#navigationhistoryrestoreoptions)、[WebContents close](https://www.electronjs.org/docs/latest/api/web-contents#contentscloseopts)
 
